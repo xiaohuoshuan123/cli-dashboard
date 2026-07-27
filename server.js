@@ -31,10 +31,49 @@ const pool = mysql.createPool({
   keepAliveInitialDelay: 10000
 });
 
-// 通用查询函数
-async function query(sql, params = []) {
+// ========== 查询缓存层（P0） ==========
+// 默认对统计类查询缓存 60s，降低 RDS 压力与官方库限流风险。
+// 健康检查(SELECT 1)不缓存；可通过 CACHE_TTL 环境变量调整秒数（0=关闭）。
+const _cache = new Map();
+function _cacheKey(sql, params) {
+  return sql.replace(/\s+/g, ' ').trim() + ' ' + JSON.stringify(params);
+}
+async function query(sql, params = [], ttl = null) {
+  const useTtl = ttl === null
+    ? (sql.trim().toLowerCase().startsWith('select 1') ? 0 : (parseInt(process.env.CACHE_TTL) || 60))
+    : ttl;
+  if (useTtl > 0) {
+    const k = _cacheKey(sql, params);
+    const hit = _cache.get(k);
+    if (hit && hit.exp > Date.now()) return hit.val;
+    const [rows] = await pool.execute(sql, params);
+    _cache.set(k, { val: rows, exp: Date.now() + useTtl * 1000 });
+    return rows;
+  }
   const [rows] = await pool.execute(sql, params);
   return rows;
+}
+
+// ========== 关键查询容错（P0） ==========
+// 草料官方库字段可能改名/表结构调整，提前探测实际列，缺失列降级为 NULL 而非整接口 500。
+const _colCache = new Map();
+async function existingColumns(table) {
+  if (_colCache.has(table)) return _colCache.get(table);
+  const rows = await query(
+    `SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ?`,
+    [dbConfig.database, table], 0
+  );
+  const set = new Set(rows.map(r => r.COLUMN_NAME));
+  _colCache.set(table, set);
+  return set;
+}
+// 构造 SELECT：对不存在的列输出 NULL 别名，保证查询不因字段缺失而整体失败
+async function safeSelect(table, aliasMap, extra = '') {
+  const cols = await existingColumns(table);
+  const list = Object.entries(aliasMap).map(([alias, col]) =>
+    cols.has(col) ? `\`${col}\` as ${alias}` : `NULL as ${alias}`
+  );
+  return `SELECT ${list.join(', ')} FROM \`${table}\` ${extra}`;
 }
 
 // ========== API 路由 ==========
@@ -55,6 +94,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// ========== 基础访问控制（P0） ==========
+// 通过地址 ?token= 或请求头 x-api-token / Authorization: Bearer 携带访问令牌。
+// 默认令牌 cli-dash-2026，生产环境请通过环境变量 ACCESS_TOKEN 覆盖；
+// 可选 IP 白名单：ALLOWED_IPS=1.2.3.4,5.6.7.8（逗号分隔）
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN || 'cli-dash-2026';
+function requireAuth(req, res, next) {
+  if (req.path === '/health') return next(); // 健康检查免鉴权，便于监控探针
+  const urlToken = req.query.token;
+  const headerToken = req.get('x-api-token') || (req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (urlToken === ACCESS_TOKEN || headerToken === ACCESS_TOKEN) return next();
+  const whitelist = (process.env.ALLOWED_IPS || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (whitelist.length && whitelist.includes(req.ip)) return next();
+  return res.status(401).json({ error: '未授权：请在访问地址后附加 ?token=访问令牌，或在请求头携带 x-api-token。' });
+}
+app.use('/api', requireAuth);
+
 // 健康检查
 app.get('/api/health', async (req, res) => {
   try {
@@ -63,6 +118,19 @@ app.get('/api/health', async (req, res) => {
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
+});
+
+// 缓存统计与手动清空（均受上面鉴权保护）
+app.get('/api/cache/stats', (req, res) => {
+  const now = Date.now();
+  let expired = 0;
+  for (const v of _cache.values()) if (v.exp <= now) expired++;
+  res.json({ entries: _cache.size, expired, ttlSeconds: parseInt(process.env.CACHE_TTL) || 60 });
+});
+app.post('/api/cache/clear', (req, res) => {
+  const n = _cache.size;
+  _cache.clear();
+  res.json({ ok: true, cleared: n });
 });
 
 // 核心统计
@@ -535,24 +603,22 @@ app.get('/api/records/latest', async (req, res) => {
 app.get('/api/first-aid/expiry', async (req, res) => {
   try {
     const EXPIRING_SOON_DAYS = 30; // 临期阈值
-    const rows = await query(`
-      SELECT 
-        code_id,
-        工段名称_3333285 as boxName,
-        存放位置_3333288 as location,
-        管理人_3333286 as recorder,
-        子码编号 as subCode,
-        创可贴有效期_3397997 as 创可贴,
-        消毒纱片有效期_3397998 as 消毒纱片,
-        口罩有效期_3397999 as 口罩,
-        棉签有效期_3398000 as 棉签,
-        碘伏有效期_3398001 as 碘伏,
-        双氧水有效期_3398002 as 双氧水,
-        烫伤膏有效期_3398003 as 烫伤膏,
-        藿香正气水有效期_3398038 as 藿香正气水
-      FROM template_codeinfo_d25
-      ORDER BY code_id
-    `);
+    const sql = await safeSelect('template_codeinfo_d25', {
+      code_id: 'code_id',
+      boxName: '工段名称_3333285',
+      location: '存放位置_3333288',
+      recorder: '管理人_3333286',
+      subCode: '子码编号',
+      创可贴: '创可贴有效期_3397997',
+      消毒纱片: '消毒纱片有效期_3397998',
+      口罩: '口罩有效期_3397999',
+      棉签: '棉签有效期_3398000',
+      碘伏: '碘伏有效期_3398001',
+      双氧水: '双氧水有效期_3398002',
+      烫伤膏: '烫伤膏有效期_3398003',
+      藿香正气水: '藿香正气水有效期_3398038'
+    });
+    const rows = await query(sql + ' ORDER BY code_id', []);
     // 兼容多种日期格式：YYYY年MM月DD日 / YYYY/MM/DD / YYYY-MM-DD
     const parseDate = (s) => {
       if (!s || typeof s !== 'string' || s.trim() === '') return null;
@@ -607,28 +673,30 @@ app.get('/api/first-aid/expiry', async (req, res) => {
 app.get('/api/fire-extinguisher/maintenance', async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 90;
-    let sql = `
-      SELECT 
-        code_id,
-        消防器材名称_3170252 as name,
-        编号_3170086 as code,
-        所在位置_3170087 as location,
-        点检人_3170286 as inspector,
-        责任部门_81035291262977 as dept,
-        上次维修再充装日期_3170253 as last_date,
-        下次维修再充装日期_3170398 as next_date,
-        钢瓶强制报废日期_3170397 as scrap_date,
-        维修再充装单位_3170288 as maintenance_unit
-      FROM template_codeinfo_d10
-      WHERE 下次维修再充装日期_3170398 IS NOT NULL 
-        AND 下次维修再充装日期_3170398 != ''
-    `;
+    const dc = '下次维修再充装日期_3170398';
+    const cols = await existingColumns('template_codeinfo_d10');
+    let extra = '';
     const params = [];
-    if (days < 9999) {
-      sql += ` AND STR_TO_DATE(下次维修再充装日期_3170398, '%Y/%m/%d') <= DATE_ADD(NOW(), INTERVAL ? DAY)`;
-      params.push(days);
+    if (cols.has(dc)) {
+      extra += `WHERE \`${dc}\` IS NOT NULL AND \`${dc}\` != ''`;
+      if (days < 9999) {
+        extra += ` AND STR_TO_DATE(\`${dc}\`, '%Y/%m/%d') <= DATE_ADD(NOW(), INTERVAL ? DAY)`;
+        params.push(days);
+      }
+      extra += ` ORDER BY STR_TO_DATE(\`${dc}\`, '%Y/%m/%d') ASC`;
     }
-    sql += ` ORDER BY STR_TO_DATE(下次维修再充装日期_3170398, '%Y/%m/%d') ASC`;
+    const sql = await safeSelect('template_codeinfo_d10', {
+      code_id: 'code_id',
+      name: '消防器材名称_3170252',
+      code: '编号_3170086',
+      location: '所在位置_3170087',
+      inspector: '点检人_3170286',
+      dept: '责任部门_81035291262977',
+      last_date: '上次维修再充装日期_3170253',
+      next_date: dc,
+      scrap_date: '钢瓶强制报废日期_3170397',
+      maintenance_unit: '维修再充装单位_3170288'
+    }, extra);
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
@@ -640,26 +708,28 @@ app.get('/api/fire-extinguisher/maintenance', async (req, res) => {
 app.get('/api/fire-extinguisher/scrap', async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 365;
-    let sql = `
-      SELECT 
-        code_id,
-        消防器材名称_3170252 as name,
-        编号_3170086 as code,
-        所在位置_3170087 as location,
-        点检人_3170286 as inspector,
-        责任部门_81035291262977 as dept,
-        生产厂家_3170090 as manufacturer,
-        钢瓶强制报废日期_3170397 as scrap_date
-      FROM template_codeinfo_d10
-      WHERE 钢瓶强制报废日期_3170397 IS NOT NULL 
-        AND 钢瓶强制报废日期_3170397 != ''
-    `;
+    const dc = '钢瓶强制报废日期_3170397';
+    const cols = await existingColumns('template_codeinfo_d10');
+    let extra = '';
     const params = [];
-    if (days < 9999) {
-      sql += ` AND STR_TO_DATE(钢瓶强制报废日期_3170397, '%Y/%m/%d') <= DATE_ADD(NOW(), INTERVAL ? DAY)`;
-      params.push(days);
+    if (cols.has(dc)) {
+      extra += `WHERE \`${dc}\` IS NOT NULL AND \`${dc}\` != ''`;
+      if (days < 9999) {
+        extra += ` AND STR_TO_DATE(\`${dc}\`, '%Y/%m/%d') <= DATE_ADD(NOW(), INTERVAL ? DAY)`;
+        params.push(days);
+      }
+      extra += ` ORDER BY STR_TO_DATE(\`${dc}\`, '%Y/%m/%d') ASC`;
     }
-    sql += ` ORDER BY STR_TO_DATE(钢瓶强制报废日期_3170397, '%Y/%m/%d') ASC`;
+    const sql = await safeSelect('template_codeinfo_d10', {
+      code_id: 'code_id',
+      name: '消防器材名称_3170252',
+      code: '编号_3170086',
+      location: '所在位置_3170087',
+      inspector: '点检人_3170286',
+      dept: '责任部门_81035291262977',
+      manufacturer: '生产厂家_3170090',
+      scrap_date: dc
+    }, extra);
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
@@ -670,18 +740,17 @@ app.get('/api/fire-extinguisher/scrap', async (req, res) => {
 // 灭火器多维度分析
 app.get('/api/fire-extinguisher/analysis', async (req, res) => {
   try {
-    const rows = await query(`
-      SELECT 
-        消防器材名称_3170252 as spec,
-        点检人_3170286 as inspector,
-        生产厂家_3170090 as manufacturer,
-        责任部门_81035291262977 as dept,
-        所在位置_3170087 as location,
-        编号_3170086 as code,
-        下次维修再充装日期_3170398 as next_maintenance,
-        钢瓶强制报废日期_3170397 as scrap_date
-      FROM template_codeinfo_d10
-    `);
+    const sql = await safeSelect('template_codeinfo_d10', {
+      spec: '消防器材名称_3170252',
+      inspector: '点检人_3170286',
+      manufacturer: '生产厂家_3170090',
+      dept: '责任部门_81035291262977',
+      location: '所在位置_3170087',
+      code: '编号_3170086',
+      next_maintenance: '下次维修再充装日期_3170398',
+      scrap_date: '钢瓶强制报废日期_3170397'
+    });
+    const rows = await query(sql, []);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
