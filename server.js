@@ -636,6 +636,37 @@ app.get('/api/fire-extinguisher/maintenance', async (req, res) => {
   }
 });
 
+// 灭火器强制报废预警（数据源：template_codeinfo_d10 钢瓶强制报废日期）
+app.get('/api/fire-extinguisher/scrap', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 365;
+    let sql = `
+      SELECT 
+        code_id,
+        消防器材名称_3170252 as name,
+        编号_3170086 as code,
+        所在位置_3170087 as location,
+        点检人_3170286 as inspector,
+        责任部门_81035291262977 as dept,
+        生产厂家_3170090 as manufacturer,
+        钢瓶强制报废日期_3170397 as scrap_date
+      FROM template_codeinfo_d10
+      WHERE 钢瓶强制报废日期_3170397 IS NOT NULL 
+        AND 钢瓶强制报废日期_3170397 != ''
+    `;
+    const params = [];
+    if (days < 9999) {
+      sql += ` AND STR_TO_DATE(钢瓶强制报废日期_3170397, '%Y/%m/%d') <= DATE_ADD(NOW(), INTERVAL ? DAY)`;
+      params.push(days);
+    }
+    sql += ` ORDER BY STR_TO_DATE(钢瓶强制报废日期_3170397, '%Y/%m/%d') ASC`;
+    const rows = await query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 灭火器多维度分析
 app.get('/api/fire-extinguisher/analysis', async (req, res) => {
   try {
@@ -643,6 +674,7 @@ app.get('/api/fire-extinguisher/analysis', async (req, res) => {
       SELECT 
         消防器材名称_3170252 as spec,
         点检人_3170286 as inspector,
+        生产厂家_3170090 as manufacturer,
         责任部门_81035291262977 as dept,
         所在位置_3170087 as location,
         编号_3170086 as code,
@@ -684,6 +716,9 @@ app.get('/api/tasks/deadline', async (req, res) => {
       LEFT JOIN cycle_task t ON i.cycle_task_id = t.id
       WHERE i.unfinish_count > 0
         AND i.end_time <= DATE_ADD(NOW(), INTERVAL ? DAY)
+        AND (i.plan_id, i.end_time) IN (
+          SELECT plan_id, MAX(end_time) FROM cycle_task_instance GROUP BY plan_id
+        )
       ORDER BY i.end_time ASC
     `, [days, days]);
     res.json(rows);
@@ -706,8 +741,11 @@ app.get('/api/tasks/overdue', async (req, res) => {
         变更方式
       FROM code_task_log
       WHERE 状态 IN ('超期未完成', '未完成')
+        AND (计划名称, 截止时间) IN (
+          SELECT 计划名称, MAX(截止时间) FROM code_task_log GROUP BY 计划名称
+        )
       ORDER BY 截止时间 DESC
-      LIMIT 100
+      LIMIT 200
     `);
     res.json(rows);
   } catch (err) {
