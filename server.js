@@ -530,43 +530,52 @@ app.get('/api/records/latest', async (req, res) => {
 // ========== 新增 API ==========
 
 // 急救药箱药品有效期追踪（计算每种药品是否在有效期内）
+// 数据源：template_codeinfo_d25（子码主数据表，草料前台展示的「码」当前字段值）
+// 注意：table_d24 只是表单提交历史日志，不能代表当前有效期，故以 template 表为准
 app.get('/api/first-aid/expiry', async (req, res) => {
   try {
     const EXPIRING_SOON_DAYS = 30; // 临期阈值
     const rows = await query(`
       SELECT 
-        record_id,
-        码名称,
-        工段_3333406 as location,
-        记录时间,
-        记录人,
-        药品有效期_创可贴_3333393 as 创可贴,
-        药品有效期_消毒纱布片_3333393 as 消毒纱布片,
-        药品有效期_棉签_3333393 as 棉签,
-        药品有效期_碘伏_3333393 as 碘伏,
-        药品有效期_双氧水_3333393 as 双氧水,
-        药品有效期_烫伤膏_3333393 as 烫伤膏,
-        药品有效期_藿香正气水_3333393 as 藿香正气水
-      FROM table_d24
-      ORDER BY record_id DESC
+        code_id,
+        工段名称_3333285 as boxName,
+        存放位置_3333288 as location,
+        管理人_3333286 as recorder,
+        子码编号 as subCode,
+        创可贴有效期_3397997 as 创可贴,
+        消毒纱片有效期_3397998 as 消毒纱片,
+        口罩有效期_3397999 as 口罩,
+        棉签有效期_3398000 as 棉签,
+        碘伏有效期_3398001 as 碘伏,
+        双氧水有效期_3398002 as 双氧水,
+        烫伤膏有效期_3398003 as 烫伤膏,
+        藿香正气水有效期_3398038 as 藿香正气水
+      FROM template_codeinfo_d25
+      ORDER BY code_id
     `);
-    // 解析 "YYYY年MM月DD日" -> Date，并计算状态
-    const parseCN = (s) => {
+    // 兼容多种日期格式：YYYY年MM月DD日 / YYYY/MM/DD / YYYY-MM-DD
+    const parseDate = (s) => {
       if (!s || typeof s !== 'string' || s.trim() === '') return null;
-      const m = s.trim().match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-      if (!m) return null;
-      return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+      const t = s.trim();
+      let m = t.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      if (m) return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+      m = t.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+      if (m) return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+      const d = new Date(t);
+      return isNaN(d.getTime()) ? null : d;
     };
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const drugFields = ['创可贴', '消毒纱布片', '棉签', '碘伏', '双氧水', '烫伤膏', '藿香正气水'];
+    const drugFields = ['创可贴', '消毒纱片', '口罩', '棉签', '碘伏', '双氧水', '烫伤膏', '藿香正气水'];
     const result = rows.map(r => {
       const drugs = drugFields.map(name => {
         const raw = r[name];
-        const d = parseCN(raw);
+        const d = parseDate(raw);
         let status = 'unknown', remaining = null, iso = null;
         if (d) {
-          iso = d.toISOString().split('T')[0];
+          d.setHours(0, 0, 0, 0);
+          const y = d.getFullYear(), mo = String(d.getMonth() + 1).padStart(2, '0'), da = String(d.getDate()).padStart(2, '0');
+          iso = `${y}-${mo}-${da}`;
           remaining = Math.round((d - today) / 86400000);
           if (remaining < 0) status = 'expired';
           else if (remaining <= EXPIRING_SOON_DAYS) status = 'expiring';
@@ -577,11 +586,11 @@ app.get('/api/first-aid/expiry', async (req, res) => {
       const expired = drugs.filter(d => d.status === 'expired').length;
       const expiring = drugs.filter(d => d.status === 'expiring').length;
       return {
-        recordId: r.record_id,
-        boxName: r.码名称,
+        recordId: r.code_id,
+        boxName: r.boxName ? `急救药箱·${r.boxName}` : '急救药箱',
         location: r.location,
-        recordTime: r.记录时间,
-        recorder: r.记录人,
+        subCode: r.subCode,
+        recorder: r.recorder,
         drugs,
         expiredCount: expired,
         expiringCount: expiring,
