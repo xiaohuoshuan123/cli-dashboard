@@ -519,6 +519,40 @@ tr:hover { background: #f8fafc; }
     </div>
   </div>
 
+  <!-- 灭火器强制报废预警 -->
+  <div class="section">
+    <div class="section-title">
+      🛢️ 灭火器强制报废预警
+      <button class="toggle-btn" onclick="toggleSection('fireScrap')">收起</button>
+    </div>
+    <div class="section-content" id="fireScrap">
+      <div class="filter-bar">
+        <label>预警天数：</label>
+        <select id="scrapDays" onchange="loadFireScrap()">
+          <option value="180">180天内</option>
+          <option value="365" selected>1年内</option>
+          <option value="730">2年内</option>
+          <option value="9999">全部</option>
+        </select>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="chart-container chart-h200">
+          <canvas id="scrapChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>编号</th><th>名称</th><th>位置</th><th>点检人</th><th>责任部门</th><th>生产厂家</th><th>强制报废日期</th><th>剩余天数</th></tr>
+            </thead>
+            <tbody id="scrapTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 灭火器多维度分析 -->
   <div class="section">
     <div class="section-title">
@@ -530,7 +564,7 @@ tr:hover { background: #f8fafc; }
         <div class="tab active" onclick="switchFireTab('spec', this)">按规格</div>
         <div class="tab" onclick="switchFireTab('inspector', this)">按负责人(点检人)</div>
         <div class="tab" onclick="switchFireTab('dept', this)">按责任部门</div>
-        <div class="tab" onclick="switchFireTab('location', this)">按位置</div>
+        <div class="tab" onclick="switchFireTab('manufacturer', this)">按生产厂家</div>
       </div>
       <div class="grid-2">
         <div class="card">
@@ -540,10 +574,16 @@ tr:hover { background: #f8fafc; }
           </div>
         </div>
         <div class="card">
-          <div class="card-title">灭火器明细列表</div>
+          <div class="card-title">灭火器明细列表（共 <span id="fireDetailCount">0</span> 个）</div>
+          <div class="filter-bar">
+            <input type="text" id="fireSearch" placeholder="🔍 精确查找：编号/名称/位置/点检人/部门/厂家" oninput="renderFireDetail()" style="min-width:240px;">
+            <select id="fireDeptFilter" onchange="renderFireDetail()"><option value="">全部责任部门</option></select>
+            <select id="fireMfFilter" onchange="renderFireDetail()"><option value="">全部生产厂家</option></select>
+            <button class="tab" onclick="clearFireFilter()">清空筛选</button>
+          </div>
           <div class="table-wrap" style="max-height:300px;">
             <table>
-              <thead><tr><th>编号</th><th>名称</th><th>位置</th><th>点检人</th><th>责任部门</th></tr></thead>
+              <thead><tr><th>编号</th><th>名称</th><th>位置</th><th>点检人</th><th>责任部门</th><th>生产厂家</th><th>强制报废日期</th></tr></thead>
               <tbody id="fireDetailTable"></tbody>
             </table>
           </div>
@@ -724,6 +764,51 @@ let fireAnalysisData = [];
 let firstAidData = [];
 let maintenanceData = [];
 let currentFireTab = 'spec';
+
+// ========== 饼图/环形图数据标签插件（离线安全，不依赖 CDN）==========
+// 在每片扇区中心显示 数值 + 百分比
+function getLuminance(hex) {
+  if (typeof hex !== 'string') return 0.5;
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  if (c.length !== 6) return 0.5;
+  const r = parseInt(c.substr(0, 2), 16) / 255,
+        g = parseInt(c.substr(2, 2), 16) / 255,
+        b = parseInt(c.substr(4, 2), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+const pieLabelPlugin = {
+  id: 'pieLabels',
+  afterDatasetsDraw(chart) {
+    const type = chart.config.type;
+    if (type !== 'pie' && type !== 'doughnut') return;
+    const meta = chart.getDatasetMeta(0);
+    if (!meta.data.length) return;
+    const data = chart.data.datasets[0].data;
+    const total = data.reduce((a, b) => a + (Number(b) || 0), 0);
+    if (!total) return;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    meta.data.forEach((arc, i) => {
+      const val = Number(data[i]) || 0;
+      if (val <= 0) return;
+      const angle = (arc.startAngle + arc.endAngle) / 2;
+      const r = arc.outerRadius * 0.6;
+      const x = arc.x + Math.cos(angle) * r;
+      const y = arc.y + Math.sin(angle) * r;
+      const bg = chart.data.datasets[0].backgroundColor[i] || '#888';
+      ctx.fillStyle = getLuminance(bg) > 0.6 ? '#1f2937' : '#ffffff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(val, x, y - 6);
+      ctx.font = '10px sans-serif';
+      ctx.fillText((val / total * 100).toFixed(1) + '%', x, y + 7);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(pieLabelPlugin);
 
 // ========== 工具函数 ==========
 async function fetchAPI(endpoint, timeout = 14000) {
@@ -1288,26 +1373,106 @@ async function loadFireMaintenance() {
   }).join('');
 }
 
+// ========== 灭火器强制报废预警 ==========
+async function loadFireScrap() {
+  const days = document.getElementById('scrapDays').value;
+  const data = await fetchAPI(`/fire-extinguisher/scrap?days=${days}`);
+  const now = new Date();
+  const deptCount = {};
+  data.forEach(m => {
+    const dept = m.dept || '未知';
+    deptCount[dept] = (deptCount[dept] || 0) + 1;
+  });
+
+  destroyChart('scrap');
+  charts.scrap = new Chart(document.getElementById('scrapChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(deptCount),
+      datasets: [{
+        label: '将强制报废数量',
+        data: Object.values(deptCount),
+        backgroundColor: '#8b5cf6'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  document.getElementById('scrapTable').innerHTML = data.length > 0 ? data.map(m => {
+    const d = new Date(m.scrap_date);
+    const diff = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+    const cls = diff < 0 ? 'expired' : diff <= 180 ? 'expiring-soon' : 'valid';
+    return `
+      <tr>
+        <td>${m.code}</td>
+        <td>${m.name}</td>
+        <td>${m.location}</td>
+        <td>${m.inspector}</td>
+        <td>${m.dept}</td>
+        <td>${m.manufacturer || '-'}</td>
+        <td>${m.scrap_date}</td>
+        <td class="${cls}">${diff < 0 ? '已过期' + Math.abs(diff) + '天' : diff + '天'}</td>
+      </tr>
+    `;
+  }).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;">当前筛选范围内无即将强制报废的灭火器</td></tr>';
+}
+
 // ========== 灭火器多维度分析 ==========
 async function loadFireAnalysis() {
   fireAnalysisData = await fetchAPI('/fire-extinguisher/analysis');
+  // 填充筛选下拉
+  const depts = [...new Set(fireAnalysisData.map(f => f.dept).filter(Boolean))].sort();
+  const mfs = [...new Set(fireAnalysisData.map(f => f.manufacturer).filter(Boolean))].sort();
+  document.getElementById('fireDeptFilter').innerHTML =
+    '<option value="">全部责任部门</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+  document.getElementById('fireMfFilter').innerHTML =
+    '<option value="">全部生产厂家</option>' + mfs.map(m => `<option value="${m}">${m}</option>`).join('');
   renderFireAnalysis();
-  
-  // 明细表格
-  document.getElementById('fireDetailTable').innerHTML = fireAnalysisData.slice(0, 50).map(f => `
+  renderFireDetail();
+}
+
+function clearFireFilter() {
+  document.getElementById('fireSearch').value = '';
+  document.getElementById('fireDeptFilter').value = '';
+  document.getElementById('fireMfFilter').value = '';
+  renderFireDetail();
+}
+
+function renderFireDetail() {
+  const kw = document.getElementById('fireSearch').value.trim().toLowerCase();
+  const dept = document.getElementById('fireDeptFilter').value;
+  const mf = document.getElementById('fireMfFilter').value;
+  const filtered = fireAnalysisData.filter(f => {
+    if (dept && f.dept !== dept) return false;
+    if (mf && f.manufacturer !== mf) return false;
+    if (kw) {
+      const hay = [f.code, f.spec, f.location, f.inspector, f.dept, f.manufacturer]
+        .join(' ').toLowerCase();
+      if (!hay.includes(kw)) return false;
+    }
+    return true;
+  });
+  document.getElementById('fireDetailCount').textContent = filtered.length;
+  document.getElementById('fireDetailTable').innerHTML = filtered.map(f => `
     <tr>
       <td>${f.code}</td>
       <td>${f.spec}</td>
       <td>${f.location}</td>
       <td>${f.inspector}</td>
       <td>${f.dept}</td>
+      <td>${f.manufacturer || '-'}</td>
+      <td>${f.scrap_date || '-'}</td>
     </tr>
-  `).join('');
+  `).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;">无匹配记录</td></tr>';
 }
 
 function renderFireAnalysis() {
   const tab = currentFireTab;
-  const titleMap = { spec: '按规格分布', inspector: '按负责人(点检人)分布', dept: '按责任部门分布', location: '按位置分布' };
+  const titleMap = { spec: '按规格分布', inspector: '按负责人(点检人)分布', dept: '按责任部门分布', manufacturer: '按生产厂家分布' };
   document.getElementById('fireAnalysisTitle').textContent = `${titleMap[tab]}（共 ${fireAnalysisData.length} 个）`;
   
   const count = {};
@@ -1388,6 +1553,7 @@ async function loadAllData() {
     loadLatestRecords(),
     loadFirstAidExpiry(),
     loadFireMaintenance(),
+    loadFireScrap(),
     loadFireAnalysis(),
     loadTaskDeadline()
   ];
