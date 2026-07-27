@@ -32,14 +32,16 @@ body {
 .header {
   background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #06b6d4 100%);
   color: white;
-  padding: 20px 32px;
+  padding: 16px 32px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-shadow: var(--shadow-lg);
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .header h1 {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -51,26 +53,62 @@ body {
   text-align: right;
 }
 .header .meta .time {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
+}
+/* Date Picker */
+.date-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.15);
+  padding: 6px 12px;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+.date-picker input[type="date"] {
+  background: rgba(255,255,255,0.9);
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+.date-picker button {
+  background: rgba(255,255,255,0.25);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.date-picker button:hover { background: rgba(255,255,255,0.35); }
+.date-picker .quick-btns {
+  display: flex;
+  gap: 4px;
+}
+.date-picker .quick-btns button {
+  padding: 3px 8px;
+  font-size: 11px;
 }
 /* Container */
 .container {
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 20px;
 }
 /* Stats Row */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
 }
 .stat-card {
   background: var(--card);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 10px;
+  padding: 16px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
   text-align: center;
@@ -81,7 +119,7 @@ body {
   box-shadow: var(--shadow-lg);
 }
 .stat-card .number {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   background: linear-gradient(135deg, var(--accent), var(--accent6));
   -webkit-background-clip: text;
@@ -89,59 +127,56 @@ body {
   background-clip: text;
 }
 .stat-card .label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text2);
-  margin-top: 4px;
+  margin-top: 2px;
   font-weight: 500;
 }
 /* Section */
 .section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .section-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  margin-bottom: 12px;
-  padding-left: 10px;
+  margin-bottom: 10px;
+  padding-left: 8px;
   border-left: 3px solid var(--accent);
   color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-title .toggle-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text2);
 }
 /* Grid */
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-.grid-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 20px;
-}
-.grid-4 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 16px;
-}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
 /* Card */
 .card {
   background: var(--card);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 10px;
+  padding: 16px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
 }
 .card-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text2);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
-.chart-container {
-  position: relative;
-  width: 100%;
-}
+.chart-container { position: relative; width: 100%; }
 .chart-h200 { height: 200px; }
 .chart-h250 { height: 250px; }
 .chart-h280 { height: 280px; }
@@ -155,10 +190,10 @@ body {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 }
 th, td {
-  padding: 10px 12px;
+  padding: 8px 10px;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
@@ -169,14 +204,16 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
+  font-size: 11px;
+  text-transform: uppercase;
 }
 tr:hover { background: #f8fafc; }
 /* Badges */
 .badge {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
   font-weight: 600;
 }
 .badge-green { background: #dcfce7; color: #166534; }
@@ -185,63 +222,118 @@ tr:hover { background: #f8fafc; }
 .badge-blue { background: #dbeafe; color: #1e40af; }
 .badge-purple { background: #ede9fe; color: #5b21b6; }
 .badge-cyan { background: #cffafe; color: #155e75; }
+/* 急救药箱药品标签 */
+.med-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.med-chip {
+  display: inline-block;
+  min-width: 78px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  border: 1px solid transparent;
+}
+.med-chip small { font-size: 10px; opacity: 0.85; }
+.med-red { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.med-yellow { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.med-green { background: #dcfce7; color: #166534; border-color: #86efac; }
+.med-gray { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }
+.dot-red { background: #ef4444; }
+.dot-yellow { background: #f59e0b; }
+.dot-green { background: #22c55e; }
+.legend { font-size: 12px; color: #64748b; }
 /* Progress bar */
 .progress-bar {
   width: 100%;
-  height: 8px;
+  height: 6px;
   background: #e2e8f0;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .progress-bar .fill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 3px;
   background: linear-gradient(90deg, var(--accent2), #34d399);
   transition: width 0.5s ease;
 }
 /* Alerts */
 .alert {
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 12px;
-  font-size: 13px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
   display: flex;
   align-items: center;
+  gap: 6px;
+}
+.alert-warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+.alert-danger { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+.alert-ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.tab {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  transition: all 0.2s;
+}
+.tab.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.tab:hover:not(.active) {
+  background: #e2e8f0;
+}
+/* Filter bar */
+.filter-bar {
+  display: flex;
   gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  align-items: center;
 }
-.alert-warn {
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #9a3412;
+.filter-bar select, .filter-bar input {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
 }
-.alert-danger {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-}
-.alert-ok {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
+.filter-bar label {
+  font-size: 12px;
+  color: var(--text2);
 }
 /* Loading */
 .loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 200px;
+  height: 150px;
   color: var(--text2);
-  font-size: 14px;
+  font-size: 13px;
 }
 .loading::after {
   content: '';
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  margin-left: 10px;
+  margin-left: 8px;
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -250,32 +342,42 @@ tr:hover { background: #f8fafc; }
   background: rgba(255,255,255,0.2);
   border: 1px solid rgba(255,255,255,0.3);
   color: white;
-  padding: 6px 14px;
-  border-radius: 6px;
+  padding: 5px 10px;
+  border-radius: 5px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   transition: all 0.2s;
 }
-.refresh-btn:hover {
-  background: rgba(255,255,255,0.3);
-}
+.refresh-btn:hover { background: rgba(255,255,255,0.3); }
 /* Responsive */
 @media (max-width: 1024px) {
   .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 768px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-  .container { padding: 12px; }
-  .header { flex-direction: column; text-align: center; gap: 8px; }
+  .container { padding: 10px; }
+  .header { flex-direction: column; text-align: center; padding: 12px; }
   .header .meta { text-align: center; }
+  .date-picker { flex-wrap: wrap; justify-content: center; }
 }
 /* Fade in animation */
-.fade-in {
-  animation: fadeIn 0.5s ease;
-}
+.fade-in { animation: fadeIn 0.4s ease; }
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+/* Expiry status colors */
+.expired { color: #991b1b; font-weight: 600; }
+.expiring-soon { color: #f59e0b; font-weight: 600; }
+.valid { color: #166534; }
+/* Hidden sections */
+.section-content {
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  overflow: hidden;
+}
+.section-content.collapsed {
+  max-height: 0;
+  opacity: 0;
 }
 </style>
 </head>
@@ -283,10 +385,23 @@ tr:hover { background: #f8fafc; }
 
 <div class="header">
   <h1>📊 草料二维码数据看板</h1>
+  <div class="date-picker">
+    <input type="date" id="startDate" value="">
+    <span style="opacity:0.7;">~</span>
+    <input type="date" id="endDate" value="">
+    <button onclick="applyDateFilter()">🔍 查询</button>
+    <div class="quick-btns">
+      <button onclick="setQuickDate(7)">近7天</button>
+      <button onclick="setQuickDate(30)">近30天</button>
+      <button onclick="setQuickDate(90)">近90天</button>
+      <button onclick="setQuickDate(365)">近1年</button>
+      <button onclick="setQuickDate(0)">全部</button>
+    </div>
+  </div>
   <div class="meta">
     <div class="time" id="currentTime">--:--:--</div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-      <span id="dataTimeRange">数据加载中...</span>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+      <span id="dataTimeRange" style="font-size:11px;">数据加载中...</span>
       <button class="refresh-btn" onclick="loadAllData()">🔄 刷新</button>
     </div>
   </div>
@@ -303,10 +418,15 @@ tr:hover { background: #f8fafc; }
 
   <!-- 月度趋势 -->
   <div class="section">
-    <div class="section-title">📈 月度记录趋势</div>
-    <div class="card">
-      <div class="chart-container chart-h280">
-        <canvas id="monthlyChart"></canvas>
+    <div class="section-title">
+      📈 月度记录趋势
+      <button class="toggle-btn" onclick="toggleSection('monthlyTrend')">收起</button>
+    </div>
+    <div class="section-content" id="monthlyTrend">
+      <div class="card">
+        <div class="chart-container chart-h280">
+          <canvas id="monthlyChart"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -316,14 +436,143 @@ tr:hover { background: #f8fafc; }
     <div class="grid-2">
       <div class="card">
         <div class="card-title">📋 各表单记录分布</div>
-        <div class="chart-container chart-h300">
+        <div class="chart-container chart-h280">
           <canvas id="formDistChart"></canvas>
         </div>
       </div>
       <div class="card">
         <div class="card-title">📊 计划执行状态分布</div>
-        <div class="chart-container chart-h300">
+        <div class="chart-container chart-h280">
           <canvas id="taskStatusChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 急救药箱药品有效期 -->
+  <div class="section">
+    <div class="section-title">
+      💊 急救药箱药品有效期监控
+      <button class="toggle-btn" onclick="toggleSection('firstAidExpiry')">收起</button>
+    </div>
+    <div class="section-content" id="firstAidExpiry">
+      <div class="card">
+        <div class="filter-bar">
+          <label>筛选：</label>
+          <select id="expiryFilter" onchange="renderFirstAidExpiry()">
+            <option value="all">全部药箱</option>
+            <option value="expired">含已过期药品</option>
+            <option value="expiring">含临期(≤30天)药品</option>
+            <option value="ok">全部有效</option>
+          </select>
+          <span class="legend"><span class="dot dot-red"></span>已过期 <span class="dot dot-yellow"></span>临期(≤30天) <span class="dot dot-green"></span>有效期内</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>药箱名称</th><th>工段</th><th>记录人</th><th>过期/临期</th><th>药品有效期明细</th></tr>
+            </thead>
+            <tbody id="firstAidTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 灭火器维修充装预警 -->
+  <div class="section">
+    <div class="section-title">
+      🔥 灭火器维修充装预警
+      <button class="toggle-btn" onclick="toggleSection('fireMaintenance')">收起</button>
+    </div>
+    <div class="section-content" id="fireMaintenance">
+      <div class="filter-bar">
+        <label>预警天数：</label>
+        <select id="maintenanceDays" onchange="loadFireMaintenance()">
+          <option value="30">30天内</option>
+          <option value="60">60天内</option>
+          <option value="90" selected>90天内</option>
+          <option value="180">180天内</option>
+          <option value="365">1年内</option>
+          <option value="9999">全部</option>
+        </select>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="chart-container chart-h200">
+          <canvas id="maintenanceChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>编号</th><th>名称</th><th>位置</th><th>点检人</th><th>责任部门</th><th>下次维修日期</th><th>剩余天数</th></tr>
+            </thead>
+            <tbody id="maintenanceTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 灭火器多维度分析 -->
+  <div class="section">
+    <div class="section-title">
+      📊 灭火器多维度分析
+      <button class="toggle-btn" onclick="toggleSection('fireAnalysis')">收起</button>
+    </div>
+    <div class="section-content" id="fireAnalysis">
+      <div class="tabs">
+        <div class="tab active" onclick="switchFireTab('spec', this)">按规格</div>
+        <div class="tab" onclick="switchFireTab('inspector', this)">按负责人(点检人)</div>
+        <div class="tab" onclick="switchFireTab('dept', this)">按责任部门</div>
+        <div class="tab" onclick="switchFireTab('location', this)">按位置</div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" id="fireAnalysisTitle">按规格分布</div>
+          <div class="chart-container chart-h300">
+            <canvas id="fireAnalysisChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">灭火器明细列表</div>
+          <div class="table-wrap" style="max-height:300px;">
+            <table>
+              <thead><tr><th>编号</th><th>名称</th><th>位置</th><th>点检人</th><th>责任部门</th></tr></thead>
+              <tbody id="fireDetailTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 计划任务到期分析 -->
+  <div class="section">
+    <div class="section-title">
+      ⏰ 计划任务到期与超期分析
+      <button class="toggle-btn" onclick="toggleSection('taskDeadline')">收起</button>
+    </div>
+    <div class="section-content" id="taskDeadline">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">即将到期/超期任务（未完成的周期任务）</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>计划名称</th><th>周期类型</th><th>开始时间</th><th>结束时间</th><th>总数</th><th>已完成</th><th>未完成</th><th>状态</th></tr></thead>
+              <tbody id="deadlineTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">超期/未完成记录</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>计划名称</th><th>状态</th><th>截止时间</th></tr></thead>
+              <tbody id="overdueTable"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -331,30 +580,35 @@ tr:hover { background: #f8fafc; }
 
   <!-- 各类检查趋势 -->
   <div class="section">
-    <div class="section-title">🔧 各类检查月度趋势</div>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">灭火器检查趋势</div>
-        <div class="chart-container chart-h250">
-          <canvas id="fireChart"></canvas>
+    <div class="section-title">
+      🔧 各类检查月度趋势
+      <button class="toggle-btn" onclick="toggleSection('checkTrends')">收起</button>
+    </div>
+    <div class="section-content" id="checkTrends">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">灭火器检查趋势</div>
+          <div class="chart-container chart-h250">
+            <canvas id="fireChart"></canvas>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">消防应急灯检查趋势</div>
-        <div class="chart-container chart-h250">
-          <canvas id="lightChart"></canvas>
+        <div class="card">
+          <div class="card-title">消防应急灯检查趋势</div>
+          <div class="chart-container chart-h250">
+            <canvas id="lightChart"></canvas>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">急救药箱点检趋势</div>
-        <div class="chart-container chart-h250">
-          <canvas id="aidChart"></canvas>
+        <div class="card">
+          <div class="card-title">急救药箱点检趋势</div>
+          <div class="chart-container chart-h250">
+            <canvas id="aidChart"></canvas>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">洗眼器点检趋势</div>
-        <div class="chart-container chart-h250">
-          <canvas id="eyeChart"></canvas>
+        <div class="card">
+          <div class="card-title">洗眼器点检趋势</div>
+          <div class="chart-container chart-h250">
+            <canvas id="eyeChart"></canvas>
+          </div>
         </div>
       </div>
     </div>
@@ -362,24 +616,29 @@ tr:hover { background: #f8fafc; }
 
   <!-- 设备状态 -->
   <div class="section">
-    <div class="section-title">🚦 设备状态监控</div>
-    <div class="grid-3">
-      <div class="card">
-        <div class="card-title">压力表状态</div>
-        <div class="chart-container chart-h200">
-          <canvas id="pressureChart"></canvas>
+    <div class="section-title">
+      🚦 设备状态监控
+      <button class="toggle-btn" onclick="toggleSection('deviceStatus')">收起</button>
+    </div>
+    <div class="section-content" id="deviceStatus">
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">压力表状态</div>
+          <div class="chart-container chart-h200">
+            <canvas id="pressureChart"></canvas>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">消防气瓶状态</div>
-        <div class="chart-container chart-h200">
-          <canvas id="gasChart"></canvas>
+        <div class="card">
+          <div class="card-title">消防气瓶状态</div>
+          <div class="chart-container chart-h200">
+            <canvas id="gasChart"></canvas>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">检查结果汇总</div>
-        <div class="chart-container chart-h200">
-          <canvas id="resultChart"></canvas>
+        <div class="card">
+          <div class="card-title">检查结果汇总</div>
+          <div class="chart-container chart-h200">
+            <canvas id="resultChart"></canvas>
+          </div>
         </div>
       </div>
     </div>
@@ -387,24 +646,29 @@ tr:hover { background: #f8fafc; }
 
   <!-- 人员排行 -->
   <div class="section">
-    <div class="section-title">👥 人员参与度排行</div>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">总记录提交 TOP 20</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
-            <tbody id="memberRankTable"></tbody>
-          </table>
+    <div class="section-title">
+      👥 人员参与度排行
+      <button class="toggle-btn" onclick="toggleSection('memberRank')">收起</button>
+    </div>
+    <div class="section-content" id="memberRank">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">总记录提交 TOP 20</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
+              <tbody id="memberRankTable"></tbody>
+            </table>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">灭火器检查提交 TOP 15</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
-            <tbody id="fireRankTable"></tbody>
-          </table>
+        <div class="card">
+          <div class="card-title">灭火器检查提交 TOP 15</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
+              <tbody id="fireRankTable"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -412,34 +676,51 @@ tr:hover { background: #f8fafc; }
 
   <!-- 计划执行明细 -->
   <div class="section">
-    <div class="section-title">📅 计划执行明细</div>
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>计划名称</th><th>总数</th><th>完成</th><th>超期完成</th><th>超期未完成</th><th>未完成</th><th>完成率</th></tr>
-          </thead>
-          <tbody id="taskDetailTable"></tbody>
-        </table>
+    <div class="section-title">
+      📅 计划执行明细
+      <button class="toggle-btn" onclick="toggleSection('taskDetail')">收起</button>
+    </div>
+    <div class="section-content" id="taskDetail">
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>计划名称</th><th>总数</th><th>完成</th><th>超期完成</th><th>超期未完成</th><th>未完成</th><th>完成率</th></tr>
+            </thead>
+            <tbody id="taskDetailTable"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- 最新记录 -->
   <div class="section">
-    <div class="section-title">🕐 最新提交记录</div>
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>ID</th><th>表单</th><th>记录人</th><th>时间</th><th>状态</th></tr></thead>
-          <tbody id="latestRecordsTable"></tbody>
-        </table>
+    <div class="section-title">
+      🕐 最新提交记录
+      <button class="toggle-btn" onclick="toggleSection('latestRecords')">收起</button>
+    </div>
+    <div class="section-content" id="latestRecords">
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>表单</th><th>记录人</th><th>时间</th><th>状态</th></tr></thead>
+            <tbody id="latestRecordsTable"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
+// ========== 全局变量 ==========
+const charts = {};
+let fireAnalysisData = [];
+let firstAidData = [];
+let maintenanceData = [];
+let currentFireTab = 'spec';
+
 // ========== 工具函数 ==========
 async function fetchAPI(endpoint) {
   const res = await fetch(`/api${endpoint}`);
@@ -452,10 +733,53 @@ function formatNumber(n) {
 }
 
 function formatDate(d) {
-  return new Date(d).toLocaleString('zh-CN', { 
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('zh-CN');
+}
+
+function formatDateTime(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleString('zh-CN', {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit'
   });
+}
+
+function destroyChart(id) {
+  if (charts[id]) {
+    charts[id].destroy();
+    delete charts[id];
+  }
+}
+
+// 日期选择器
+function setQuickDate(days) {
+  const end = new Date();
+  const start = new Date();
+  if (days > 0) {
+    start.setDate(start.getDate() - days);
+  } else {
+    start.setFullYear(2020, 0, 1);
+  }
+  document.getElementById('startDate').value = start.toISOString().split('T')[0];
+  document.getElementById('endDate').value = end.toISOString().split('T')[0];
+  loadAllData();
+}
+
+function applyDateFilter() {
+  loadAllData();
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('collapsed');
+}
+
+function switchFireTab(tab, el) {
+  currentFireTab = tab;
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderFireAnalysis();
 }
 
 // 更新时间
@@ -465,16 +789,6 @@ function updateTime() {
 }
 setInterval(updateTime, 1000);
 updateTime();
-
-// ========== 图表实例 ==========
-const charts = {};
-
-function destroyChart(id) {
-  if (charts[id]) {
-    charts[id].destroy();
-    delete charts[id];
-  }
-}
 
 // ========== 加载核心指标 ==========
 async function loadStats() {
@@ -507,7 +821,7 @@ async function loadStats() {
   `;
   if (stats.timeRange) {
     document.getElementById('dataTimeRange').textContent = 
-      `${formatDate(stats.timeRange.earliest).slice(0,10)} ~ ${formatDate(stats.timeRange.latest).slice(0,10)}`;
+      `${formatDate(stats.timeRange.earliest)} ~ ${formatDate(stats.timeRange.latest)}`;
   }
   return stats;
 }
@@ -538,11 +852,10 @@ async function loadAlerts() {
     alerts.push(`<div class="alert alert-warn">⚠️ 灭火器检查异常 ${fireBad.count} 条记录</div>`);
   }
   
-  // 应急灯异常
-  const lightResults = await fetchAPI('/emergency-lights/results');
-  const lightBad = lightResults.find(l => l.result && l.result.includes('异常'));
-  if (lightBad) {
-    alerts.push(`<div class="alert alert-warn">⚠️ 消防应急灯异常 ${lightBad.count} 条记录</div>`);
+  // 超期任务
+  const overdue = await fetchAPI('/tasks/overdue');
+  if (overdue && overdue.length > 0) {
+    alerts.push(`<div class="alert alert-danger">⚠️ 超期/未完成计划任务 ${overdue.length} 条，需跟进</div>`);
   }
   
   if (alerts.length === 0) {
@@ -554,7 +867,13 @@ async function loadAlerts() {
 
 // ========== 月度趋势 ==========
 async function loadMonthlyTrend() {
-  const data = await fetchAPI('/trends/monthly');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const data = await fetchAPI(`/trends/monthly?${params}`);
   destroyChart('monthly');
   charts.monthly = new Chart(document.getElementById('monthlyChart'), {
     type: 'line',
@@ -581,7 +900,13 @@ async function loadMonthlyTrend() {
 
 // ========== 表单分布 ==========
 async function loadFormDist() {
-  const data = await fetchAPI('/forms/distribution');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const data = await fetchAPI(`/forms/distribution?${params}`);
   destroyChart('formDist');
   charts.formDist = new Chart(document.getElementById('formDistChart'), {
     type: 'doughnut',
@@ -601,7 +926,13 @@ async function loadFormDist() {
 
 // ========== 计划执行状态 ==========
 async function loadTaskStatus() {
-  const data = await fetchAPI('/tasks/status');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const data = await fetchAPI(`/tasks/status?${params}`);
   const colorMap = { '完成': '#10b981', '超期未完成': '#ef4444', '超期完成': '#f59e0b', '未完成': '#94a3b8' };
   destroyChart('taskStatus');
   charts.taskStatus = new Chart(document.getElementById('taskStatusChart'), {
@@ -622,7 +953,13 @@ async function loadTaskStatus() {
 
 // ========== 灭火器趋势 ==========
 async function loadFireTrend() {
-  const data = await fetchAPI('/fire-extinguisher/trend');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const data = await fetchAPI(`/fire-extinguisher/trend?${params}`);
   destroyChart('fire');
   charts.fire = new Chart(document.getElementById('fireChart'), {
     type: 'bar',
@@ -636,7 +973,13 @@ async function loadFireTrend() {
 
 // ========== 应急灯趋势 ==========
 async function loadLightTrend() {
-  const data = await fetchAPI('/emergency-lights/trend');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const data = await fetchAPI(`/emergency-lights/trend?${params}`);
   destroyChart('light');
   charts.light = new Chart(document.getElementById('lightChart'), {
     type: 'bar',
@@ -650,7 +993,13 @@ async function loadLightTrend() {
 
 // ========== 急救药箱趋势 ==========
 async function loadAidTrend() {
-  const data = await fetchAPI('/first-aid/trend');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const data = await fetchAPI(`/first-aid/trend?${params}`);
   destroyChart('aid');
   charts.aid = new Chart(document.getElementById('aidChart'), {
     type: 'bar',
@@ -664,7 +1013,13 @@ async function loadAidTrend() {
 
 // ========== 洗眼器趋势 ==========
 async function loadEyeTrend() {
-  const data = await fetchAPI('/eye-wash/trend');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const data = await fetchAPI(`/eye-wash/trend?${params}`);
   destroyChart('eye');
   charts.eye = new Chart(document.getElementById('eyeChart'), {
     type: 'bar',
@@ -730,7 +1085,13 @@ async function loadResults() {
 
 // ========== 人员排行 ==========
 async function loadMemberRanking() {
-  const members = await fetchAPI('/members/ranking');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const members = await fetchAPI(`/members/ranking?${params}`);
   const total = members.reduce((s, m) => s + m.count, 0);
   document.getElementById('memberRankTable').innerHTML = members.map((m, i) => `
     <tr>
@@ -748,7 +1109,13 @@ async function loadMemberRanking() {
 }
 
 async function loadFireRanking() {
-  const members = await fetchAPI('/fire-extinguisher/ranking');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const members = await fetchAPI(`/fire-extinguisher/ranking?${params}`);
   const total = members.reduce((s, m) => s + m.count, 0);
   document.getElementById('fireRankTable').innerHTML = members.map((m, i) => `
     <tr>
@@ -767,7 +1134,13 @@ async function loadFireRanking() {
 
 // ========== 计划执行明细 ==========
 async function loadTaskDetails() {
-  const tasks = await fetchAPI('/tasks/details');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  
+  const tasks = await fetchAPI(`/tasks/details?${params}`);
   document.getElementById('taskDetailTable').innerHTML = tasks.map(t => {
     const rate = t.total > 0 ? ((t.completed / t.total) * 100).toFixed(1) : 0;
     return `
@@ -797,10 +1170,180 @@ async function loadLatestRecords() {
       <td>${r.record_id}</td>
       <td>${r.记录单名称}</td>
       <td>${r.记录人}</td>
-      <td>${formatDate(r.记录时间)}</td>
+      <td>${formatDateTime(r.记录时间)}</td>
       <td><span class="badge badge-green">${r.状态}</span></td>
     </tr>
   `).join('');
+}
+
+// ========== 急救药箱药品有效期 ==========
+async function loadFirstAidExpiry() {
+  firstAidData = await fetchAPI('/first-aid/expiry');
+  renderFirstAidExpiry();
+}
+
+function renderFirstAidExpiry() {
+  const filter = document.getElementById('expiryFilter').value;
+  const tbody = document.getElementById('firstAidTable');
+
+  const statusText = s => s === 'expired' ? '已过期' : s === 'expiring' ? '临期' : s === 'valid' ? '有效' : '未知';
+
+  tbody.innerHTML = firstAidData.filter(row => {
+    if (filter === 'all') return true;
+    if (filter === 'expired') return row.hasExpired;
+    if (filter === 'expiring') return row.expiringCount > 0;
+    if (filter === 'ok') return !row.hasExpired && row.expiringCount === 0;
+    return true;
+  }).map(row => {
+    const chips = row.drugs.map(d => {
+      const cls = d.status === 'expired' ? 'med-chip med-red' : d.status === 'expiring' ? 'med-chip med-yellow' : d.status === 'valid' ? 'med-chip med-green' : 'med-chip med-gray';
+      const txt = d.status === 'expired' ? `过期${Math.abs(d.remainingDays)}天` : d.remainingDays !== null ? `剩${d.remainingDays}天` : '无日期';
+      return `<span class="${cls}" title="${d.raw}">${d.name}<br><small>${d.expiry||'-'} · ${txt}</small></span>`;
+    }).join('');
+    const badge = row.hasExpired
+      ? `<span class="badge badge-red">过期${row.expiredCount}</span><span class="badge badge-yellow">临期${row.expiringCount}</span>`
+      : row.expiringCount > 0
+        ? `<span class="badge badge-yellow">临期${row.expiringCount}</span>`
+        : `<span class="badge badge-green">全部有效</span>`;
+    return `<tr>
+      <td style="font-weight:600;">${row.boxName || '未知'}</td>
+      <td>${row.location || '-'}</td>
+      <td>${row.recorder || '-'}</td>
+      <td>${badge}</td>
+      <td><div class="med-wrap">${chips}</div></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;">无匹配药箱</td></tr>';
+}  }).join('');
+}
+
+// ========== 灭火器维修充装预警 ==========
+async function loadFireMaintenance() {
+  const days = document.getElementById('maintenanceDays').value;
+  maintenanceData = await fetchAPI(`/fire-extinguisher/maintenance?days=${days}`);
+  
+  const now = new Date();
+  const deptCount = {};
+  maintenanceData.forEach(m => {
+    const dept = m.dept || '未知';
+    const d = new Date(m.next_date);
+    const diff = Math.ceil((d - now) / (1000*60*60*24));
+    if (!deptCount[dept]) deptCount[dept] = 0;
+    deptCount[dept]++;
+  });
+  
+  // 图表
+  destroyChart('maintenance');
+  charts.maintenance = new Chart(document.getElementById('maintenanceChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(deptCount),
+      datasets: [{
+        label: '需维修数量',
+        data: Object.values(deptCount),
+        backgroundColor: '#ef4444'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+  
+  // 表格
+  document.getElementById('maintenanceTable').innerHTML = maintenanceData.map(m => {
+    const d = new Date(m.next_date);
+    const diff = Math.ceil((d - now) / (1000*60*60*24));
+    const cls = diff < 0 ? 'expired' : diff <= 30 ? 'expiring-soon' : 'valid';
+    return `
+      <tr>
+        <td>${m.code}</td>
+        <td>${m.name}</td>
+        <td>${m.location}</td>
+        <td>${m.inspector}</td>
+        <td>${m.dept}</td>
+        <td>${m.next_date}</td>
+        <td class="${cls}">${diff < 0 ? '已过期' + Math.abs(diff) + '天' : diff + '天'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ========== 灭火器多维度分析 ==========
+async function loadFireAnalysis() {
+  fireAnalysisData = await fetchAPI('/fire-extinguisher/analysis');
+  renderFireAnalysis();
+  
+  // 明细表格
+  document.getElementById('fireDetailTable').innerHTML = fireAnalysisData.slice(0, 50).map(f => `
+    <tr>
+      <td>${f.code}</td>
+      <td>${f.spec}</td>
+      <td>${f.location}</td>
+      <td>${f.inspector}</td>
+      <td>${f.dept}</td>
+    </tr>
+  `).join('');
+}
+
+function renderFireAnalysis() {
+  const tab = currentFireTab;
+  const titleMap = { spec: '按规格分布', inspector: '按负责人(点检人)分布', dept: '按责任部门分布', location: '按位置分布' };
+  document.getElementById('fireAnalysisTitle').textContent = `${titleMap[tab]}（共 ${fireAnalysisData.length} 个）`;
+  
+  const count = {};
+  fireAnalysisData.forEach(f => {
+    const key = f[tab] || '未知';
+    count[key] = (count[key] || 0) + 1;
+  });
+  
+  const sorted = Object.entries(count).sort((a, b) => b[1] - a[1]);
+  const colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16'];
+  
+  destroyChart('fireAnalysis');
+  charts.fireAnalysis = new Chart(document.getElementById('fireAnalysisChart'), {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(s => s[0]),
+      datasets: [{
+        data: sorted.map(s => s[1]),
+        backgroundColor: colors
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } }
+    }
+  });
+}
+
+// ========== 计划任务到期分析 ==========
+async function loadTaskDeadline() {
+  const deadline = await fetchAPI('/tasks/deadline?days=30');
+  document.getElementById('deadlineTable').innerHTML = deadline.length > 0 ? deadline.map(t => {
+    const statusBadge = t.status === '已逾期' ? 'badge-red' : t.status === '即将到期' ? 'badge-yellow' : 'badge-blue';
+    return `
+      <tr>
+        <td>${t.plan_name || t.plan_id}</td>
+        <td>${t.cycle_type || '-'}</td>
+        <td>${formatDateTime(t.start_time)}</td>
+        <td>${formatDateTime(t.end_time)}</td>
+        <td>${t.total_count}</td>
+        <td>${t.finish_count}</td>
+        <td><span class="badge badge-red">${t.unfinish_count}</span></td>
+        <td><span class="badge ${statusBadge}">${t.status}</span></td>
+      </tr>
+    `;
+  }).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;">暂无即将到期/超期任务</td></tr>';
+  
+  const overdue = await fetchAPI('/tasks/overdue');
+  document.getElementById('overdueTable').innerHTML = overdue.length > 0 ? overdue.map(t => `
+    <tr>
+      <td>${t.计划名称}</td>
+      <td><span class="badge badge-red">${t.状态}</span></td>
+      <td>${formatDateTime(t.截止时间)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="3" style="text-align:center;color:#94a3b8;">暂无超期记录</td></tr>';
 }
 
 // ========== 加载全部 ==========
@@ -824,7 +1367,11 @@ async function loadAllData() {
       loadMemberRanking(),
       loadFireRanking(),
       loadTaskDetails(),
-      loadLatestRecords()
+      loadLatestRecords(),
+      loadFirstAidExpiry(),
+      loadFireMaintenance(),
+      loadFireAnalysis(),
+      loadTaskDeadline()
     ]);
     
     console.log('✅ 数据刷新完成:', new Date().toLocaleString('zh-CN'));
