@@ -18,12 +18,17 @@ const dbConfig = {
   charset: 'utf8mb4'
 };
 
-// 创建连接池
+// 创建连接池（带超时，避免 Railway 等环境连不上 RDS 时永久挂起）
 const pool = mysql.createPool({
   ...dbConfig,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  connectTimeout: 8000,
+  acquireTimeout: 8000,
+  timeout: 10000,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000
 });
 
 // 通用查询函数
@@ -33,6 +38,22 @@ async function query(sql, params = []) {
 }
 
 // ========== API 路由 ==========
+
+// 请求级超时保护：任何 API 最多 15 秒必须返回，避免 Railway 等环境连不上
+// 数据库时前端永久 "加载中"。超时后给出明确诊断信息。
+app.use((req, res, next) => {
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(504).json({
+        error: '请求超时：数据库连接或查询耗时过长。',
+        hint: '若部署在 Railway 等海外平台，很可能是阿里云 RDS 安全组白名单未放行该平台出口 IP。请检查 RDS 白名单，或改用能直连 RDS 的部署方式（如本地内网穿透）。'
+      });
+    }
+  }, 15000);
+  res.on('finish', () => clearTimeout(timer));
+  res.on('close', () => clearTimeout(timer));
+  next();
+});
 
 // 健康检查
 app.get('/api/health', async (req, res) => {

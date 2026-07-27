@@ -401,6 +401,7 @@ tr:hover { background: #f8fafc; }
   <div class="meta">
     <div class="time" id="currentTime">--:--:--</div>
     <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+      <span id="dbStatus" style="font-size:11px;font-weight:600;">⏳ 数据库状态检测中...</span>
       <span id="dataTimeRange" style="font-size:11px;">数据加载中...</span>
       <button class="refresh-btn" onclick="loadAllData()">🔄 刷新</button>
     </div>
@@ -722,10 +723,26 @@ let maintenanceData = [];
 let currentFireTab = 'spec';
 
 // ========== 工具函数 ==========
-async function fetchAPI(endpoint) {
-  const res = await fetch(`/api${endpoint}`);
-  if (!res.ok) throw new Error(`API ${endpoint} failed`);
-  return res.json();
+async function fetchAPI(endpoint, timeout = 14000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(`/api${endpoint}`, { signal: controller.signal });
+    if (!res.ok) {
+      let msg = `API ${endpoint} 返回 ${res.status}`;
+      try {
+        const body = await res.json();
+        if (body && body.hint) msg += ` —— ${body.hint}`;
+      } catch (e) {}
+      throw new Error(msg);
+    }
+    return await res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`请求超时（${endpoint}）`);
+    throw err;
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 function formatNumber(n) {
@@ -1348,36 +1365,60 @@ async function loadTaskDeadline() {
 
 // ========== 加载全部 ==========
 async function loadAllData() {
+  document.getElementById('statsRow').innerHTML = '<div class="loading">正在刷新数据</div>';
+  await loadHealth();
+  const tasks = [
+    loadStats(),
+    loadAlerts(),
+    loadMonthlyTrend(),
+    loadFormDist(),
+    loadTaskStatus(),
+    loadFireTrend(),
+    loadLightTrend(),
+    loadAidTrend(),
+    loadEyeTrend(),
+    loadPressure(),
+    loadGas(),
+    loadResults(),
+    loadMemberRanking(),
+    loadFireRanking(),
+    loadTaskDetails(),
+    loadLatestRecords(),
+    loadFirstAidExpiry(),
+    loadFireMaintenance(),
+    loadFireAnalysis(),
+    loadTaskDeadline()
+  ];
+  const results = await Promise.allSettled(tasks);
+  const failed = results.filter(r => r.status === 'rejected');
+  // 即便部分失败，也要清除主 loading（防止永久 "加载中"）
+  const sr = document.getElementById('statsRow');
+  if (sr && sr.querySelector('.loading')) {
+    if (failed.length > 0) {
+      sr.innerHTML = `<div style="color:#ef4444;padding:16px;">⚠️ 部分数据加载失败（${failed.length}/${tasks.length}）。<br>常见原因：部署平台无法连接阿里云 RDS（白名单/网络）。请查看右上角数据库状态。</div>`;
+    } else {
+      sr.innerHTML = `<div style="color:#94a3b8;padding:16px;">未能获取核心指标，请刷新重试。</div>`;
+    }
+  }
+  if (failed.length > 0) console.warn('部分加载失败:', failed.map(f => f.reason?.message));
+}
+
+// ========== 数据库健康状态诊断 ==========
+async function loadHealth() {
+  const el = document.getElementById('dbStatus');
+  if (!el) return;
   try {
-    document.getElementById('statsRow').innerHTML = '<div class="loading">正在刷新数据</div>';
-    
-    await Promise.all([
-      loadStats(),
-      loadAlerts(),
-      loadMonthlyTrend(),
-      loadFormDist(),
-      loadTaskStatus(),
-      loadFireTrend(),
-      loadLightTrend(),
-      loadAidTrend(),
-      loadEyeTrend(),
-      loadPressure(),
-      loadGas(),
-      loadResults(),
-      loadMemberRanking(),
-      loadFireRanking(),
-      loadTaskDetails(),
-      loadLatestRecords(),
-      loadFirstAidExpiry(),
-      loadFireMaintenance(),
-      loadFireAnalysis(),
-      loadTaskDeadline()
-    ]);
-    
-    console.log('✅ 数据刷新完成:', new Date().toLocaleString('zh-CN'));
+    const h = await fetchAPI('/health');
+    if (h.status === 'ok') {
+      el.innerHTML = '🟢 数据库已连接';
+      el.style.color = '#16a34a';
+    } else {
+      el.innerHTML = '🔴 数据库异常：' + (h.message || '未知');
+      el.style.color = '#ef4444';
+    }
   } catch (err) {
-    console.error('❌ 数据加载失败:', err);
-    document.getElementById('statsRow').innerHTML = `<div style="color:#ef4444;padding:20px;">❌ 数据加载失败: ${err.message}</div>`;
+    el.innerHTML = '🔴 无法连接后端：' + err.message;
+    el.style.color = '#ef4444';
   }
 }
 
