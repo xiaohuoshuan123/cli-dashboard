@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>草料二维码数据看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --text: #0f172a;
+  --text2: #64748b;
+  --accent: #3b82f6;
+  --accent2: #10b981;
+  --accent3: #f59e0b;
+  --accent4: #ef4444;
+  --accent5: #8b5cf6;
+  --accent6: #06b6d4;
+  --border: #e2e8f0;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+/* Header */
+.header {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #06b6d4 100%);
+  color: white;
+  padding: 20px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-lg);
+}
+.header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header .meta {
+  font-size: 13px;
+  opacity: 0.9;
+  text-align: right;
+}
+.header .meta .time {
+  font-size: 20px;
+  font-weight: 600;
+}
+/* Container */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+/* Stats Row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+.stat-card .number {
+  font-size: 28px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--accent6));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.stat-card .label {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 4px;
+  font-weight: 500;
+}
+/* Section */
+.section {
+  margin-bottom: 24px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+  color: var(--text);
+}
+/* Grid */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+}
+.grid-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 16px;
+}
+/* Card */
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.chart-container {
+  position: relative;
+  width: 100%;
+}
+.chart-h200 { height: 200px; }
+.chart-h250 { height: 250px; }
+.chart-h280 { height: 280px; }
+.chart-h300 { height: 300px; }
+/* Table */
+.table-wrap {
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th, td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: var(--text2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+tr:hover { background: #f8fafc; }
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge-green { background: #dcfce7; color: #166534; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+.badge-blue { background: #dbeafe; color: #1e40af; }
+.badge-purple { background: #ede9fe; color: #5b21b6; }
+.badge-cyan { background: #cffafe; color: #155e75; }
+/* Progress bar */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.progress-bar .fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent2), #34d399);
+  transition: width 0.5s ease;
+}
+/* Alerts */
+.alert {
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.alert-warn {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+.alert-danger {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+.alert-ok {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+/* Loading */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text2);
+  font-size: 14px;
+}
+.loading::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin-left: 10px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+/* Refresh button */
+.refresh-btn {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.refresh-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
+/* Responsive */
+@media (max-width: 1024px) {
+  .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .container { padding: 12px; }
+  .header { flex-direction: column; text-align: center; gap: 8px; }
+  .header .meta { text-align: center; }
+}
+/* Fade in animation */
+.fade-in {
+  animation: fadeIn 0.5s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 草料二维码数据看板</h1>
+  <div class="meta">
+    <div class="time" id="currentTime">--:--:--</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+      <span id="dataTimeRange">数据加载中...</span>
+      <button class="refresh-btn" onclick="loadAllData()">🔄 刷新</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- 核心指标 -->
+  <div class="stats-row" id="statsRow">
+    <div class="loading">加载中</div>
+  </div>
+
+  <!-- 告警/提示 -->
+  <div id="alertsContainer"></div>
+
+  <!-- 月度趋势 -->
+  <div class="section">
+    <div class="section-title">📈 月度记录趋势</div>
+    <div class="card">
+      <div class="chart-container chart-h280">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 表单分布 & 计划执行 -->
+  <div class="section">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">📋 各表单记录分布</div>
+        <div class="chart-container chart-h300">
+          <canvas id="formDistChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 计划执行状态分布</div>
+        <div class="chart-container chart-h300">
+          <canvas id="taskStatusChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 各类检查趋势 -->
+  <div class="section">
+    <div class="section-title">🔧 各类检查月度趋势</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">灭火器检查趋势</div>
+        <div class="chart-container chart-h250">
+          <canvas id="fireChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">消防应急灯检查趋势</div>
+        <div class="chart-container chart-h250">
+          <canvas id="lightChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">急救药箱点检趋势</div>
+        <div class="chart-container chart-h250">
+          <canvas id="aidChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">洗眼器点检趋势</div>
+        <div class="chart-container chart-h250">
+          <canvas id="eyeChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设备状态 -->
+  <div class="section">
+    <div class="section-title">🚦 设备状态监控</div>
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">压力表状态</div>
+        <div class="chart-container chart-h200">
+          <canvas id="pressureChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">消防气瓶状态</div>
+        <div class="chart-container chart-h200">
+          <canvas id="gasChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">检查结果汇总</div>
+        <div class="chart-container chart-h200">
+          <canvas id="resultChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 人员排行 -->
+  <div class="section">
+    <div class="section-title">👥 人员参与度排行</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">总记录提交 TOP 20</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
+            <tbody id="memberRankTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">灭火器检查提交 TOP 15</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
+            <tbody id="fireRankTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 计划执行明细 -->
+  <div class="section">
+    <div class="section-title">📅 计划执行明细</div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>计划名称</th><th>总数</th><th>完成</th><th>超期完成</th><th>超期未完成</th><th>未完成</th><th>完成率</th></tr>
+          </thead>
+          <tbody id="taskDetailTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 最新记录 -->
+  <div class="section">
+    <div class="section-title">🕐 最新提交记录</div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>表单</th><th>记录人</th><th>时间</th><th>状态</th></tr></thead>
+          <tbody id="latestRecordsTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== 工具函数 ==========
+async function fetchAPI(endpoint) {
+  const res = await fetch(`/api${endpoint}`);
+  if (!res.ok) throw new Error(`API ${endpoint} failed`);
+  return res.json();
+}
+
+function formatNumber(n) {
+  return n?.toLocaleString() || '0';
+}
+
+function formatDate(d) {
+  return new Date(d).toLocaleString('zh-CN', { 
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// 更新时间
+function updateTime() {
+  const now = new Date();
+  document.getElementById('currentTime').textContent = now.toLocaleTimeString('zh-CN');
+}
+setInterval(updateTime, 1000);
+updateTime();
+
+// ========== 图表实例 ==========
+const charts = {};
+
+function destroyChart(id) {
+  if (charts[id]) {
+    charts[id].destroy();
+    delete charts[id];
+  }
+}
+
+// ========== 加载核心指标 ==========
+async function loadStats() {
+  const stats = await fetchAPI('/stats');
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card fade-in">
+      <div class="number">${formatNumber(stats.codeCount)}</div>
+      <div class="label">二维码总数</div>
+    </div>
+    <div class="stat-card fade-in">
+      <div class="number">${formatNumber(stats.recordCount)}</div>
+      <div class="label">表单记录</div>
+    </div>
+    <div class="stat-card fade-in">
+      <div class="number">${formatNumber(stats.taskCount)}</div>
+      <div class="label">计划执行</div>
+    </div>
+    <div class="stat-card fade-in">
+      <div class="number">${stats.completionRate}%</div>
+      <div class="label">计划完成率</div>
+    </div>
+    <div class="stat-card fade-in">
+      <div class="number">${formatNumber(stats.memberCount)}</div>
+      <div class="label">参与人数</div>
+    </div>
+    <div class="stat-card fade-in">
+      <div class="number">${stats.timeRange ? Math.ceil((new Date(stats.timeRange.latest) - new Date(stats.timeRange.earliest)) / 86400000) : '--'}</div>
+      <div class="label">覆盖天数</div>
+    </div>
+  `;
+  if (stats.timeRange) {
+    document.getElementById('dataTimeRange').textContent = 
+      `${formatDate(stats.timeRange.earliest).slice(0,10)} ~ ${formatDate(stats.timeRange.latest).slice(0,10)}`;
+  }
+  return stats;
+}
+
+// ========== 告警 ==========
+async function loadAlerts() {
+  const container = document.getElementById('alertsContainer');
+  const alerts = [];
+  
+  // 压力表异常
+  const pressure = await fetchAPI('/pressure-gauge/status');
+  const pressureBad = pressure.find(p => p.status && p.status.includes('异常'));
+  if (pressureBad) {
+    alerts.push(`<div class="alert alert-danger">⚠️ 压力表：${pressureBad.status} ${pressureBad.count} 个，需立即处理</div>`);
+  }
+  
+  // 气瓶异常
+  const gas = await fetchAPI('/fire-cylinder/status');
+  const gasBad = gas.find(g => g.status && (g.status.includes('压力不足') || g.status.includes('库存未检')));
+  if (gasBad) {
+    alerts.push(`<div class="alert alert-warn">⚠️ 消防气瓶：${gasBad.status} ${gasBad.count} 个</div>`);
+  }
+  
+  // 灭火器异常
+  const fireResults = await fetchAPI('/fire-extinguisher/results');
+  const fireBad = fireResults.find(f => f.result && f.result.includes('异常'));
+  if (fireBad) {
+    alerts.push(`<div class="alert alert-warn">⚠️ 灭火器检查异常 ${fireBad.count} 条记录</div>`);
+  }
+  
+  // 应急灯异常
+  const lightResults = await fetchAPI('/emergency-lights/results');
+  const lightBad = lightResults.find(l => l.result && l.result.includes('异常'));
+  if (lightBad) {
+    alerts.push(`<div class="alert alert-warn">⚠️ 消防应急灯异常 ${lightBad.count} 条记录</div>`);
+  }
+  
+  if (alerts.length === 0) {
+    alerts.push(`<div class="alert alert-ok">✅ 所有设备运行正常，无异常状态</div>`);
+  }
+  
+  container.innerHTML = alerts.join('');
+}
+
+// ========== 月度趋势 ==========
+async function loadMonthlyTrend() {
+  const data = await fetchAPI('/trends/monthly');
+  destroyChart('monthly');
+  charts.monthly = new Chart(document.getElementById('monthlyChart'), {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.month.replace('20', '')),
+      datasets: [{
+        label: '记录数',
+        data: data.map(d => d.count),
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 3,
+        pointBackgroundColor: '#3b82f6'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+    }
+  });
+}
+
+// ========== 表单分布 ==========
+async function loadFormDist() {
+  const data = await fetchAPI('/forms/distribution');
+  destroyChart('formDist');
+  charts.formDist = new Chart(document.getElementById('formDistChart'), {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.name),
+      datasets: [{
+        data: data.map(d => d.count),
+        backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16','#a855f7','#14b8a6']
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } }
+    }
+  });
+}
+
+// ========== 计划执行状态 ==========
+async function loadTaskStatus() {
+  const data = await fetchAPI('/tasks/status');
+  const colorMap = { '完成': '#10b981', '超期未完成': '#ef4444', '超期完成': '#f59e0b', '未完成': '#94a3b8' };
+  destroyChart('taskStatus');
+  charts.taskStatus = new Chart(document.getElementById('taskStatusChart'), {
+    type: 'pie',
+    data: {
+      labels: data.map(d => d.status),
+      datasets: [{
+        data: data.map(d => d.count),
+        backgroundColor: data.map(d => colorMap[d.status] || '#64748b')
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { font: { size: 12 } } } }
+    }
+  });
+}
+
+// ========== 灭火器趋势 ==========
+async function loadFireTrend() {
+  const data = await fetchAPI('/fire-extinguisher/trend');
+  destroyChart('fire');
+  charts.fire = new Chart(document.getElementById('fireChart'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.month.replace('20', '')),
+      datasets: [{ label: '检查数', data: data.map(d => d.count), backgroundColor: '#3b82f6' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ========== 应急灯趋势 ==========
+async function loadLightTrend() {
+  const data = await fetchAPI('/emergency-lights/trend');
+  destroyChart('light');
+  charts.light = new Chart(document.getElementById('lightChart'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.month.replace('20', '')),
+      datasets: [{ label: '检查数', data: data.map(d => d.count), backgroundColor: '#10b981' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ========== 急救药箱趋势 ==========
+async function loadAidTrend() {
+  const data = await fetchAPI('/first-aid/trend');
+  destroyChart('aid');
+  charts.aid = new Chart(document.getElementById('aidChart'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.month.replace('20', '')),
+      datasets: [{ label: '点检数', data: data.map(d => d.count), backgroundColor: '#f59e0b' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ========== 洗眼器趋势 ==========
+async function loadEyeTrend() {
+  const data = await fetchAPI('/eye-wash/trend');
+  destroyChart('eye');
+  charts.eye = new Chart(document.getElementById('eyeChart'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.month.replace('20', '')),
+      datasets: [{ label: '点检数', data: data.map(d => d.count), backgroundColor: '#8b5cf6' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ========== 压力表状态 ==========
+async function loadPressure() {
+  const data = await fetchAPI('/pressure-gauge/status');
+  const colorMap = { '正常（检验通过）': '#10b981', '异常（超期未检）': '#ef4444' };
+  destroyChart('pressure');
+  charts.pressure = new Chart(document.getElementById('pressureChart'), {
+    type: 'pie',
+    data: {
+      labels: data.map(d => d.status),
+      datasets: [{ data: data.map(d => d.count), backgroundColor: data.map(d => colorMap[d.status] || '#64748b') }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
+  });
+}
+
+// ========== 气瓶状态 ==========
+async function loadGas() {
+  const data = await fetchAPI('/fire-cylinder/status');
+  const colorMap = { '正常使用': '#10b981', '库存未检': '#f59e0b', '压力不足': '#ef4444' };
+  destroyChart('gas');
+  charts.gas = new Chart(document.getElementById('gasChart'), {
+    type: 'pie',
+    data: {
+      labels: data.map(d => d.status),
+      datasets: [{ data: data.map(d => d.count), backgroundColor: data.map(d => colorMap[d.status] || '#64748b') }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
+  });
+}
+
+// ========== 检查结果汇总 ==========
+async function loadResults() {
+  const fire = await fetchAPI('/fire-extinguisher/results');
+  const light = await fetchAPI('/emergency-lights/results');
+  const allResults = {};
+  fire.forEach(r => { allResults['灭火器-' + r.result] = r.count; });
+  light.forEach(r => { allResults['应急灯-' + r.result] = r.count; });
+  
+  destroyChart('result');
+  charts.result = new Chart(document.getElementById('resultChart'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(allResults),
+      datasets: [{
+        data: Object.values(allResults),
+        backgroundColor: ['#10b981', '#ef4444', '#10b981', '#ef4444']
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
+  });
+}
+
+// ========== 人员排行 ==========
+async function loadMemberRanking() {
+  const members = await fetchAPI('/members/ranking');
+  const total = members.reduce((s, m) => s + m.count, 0);
+  document.getElementById('memberRankTable').innerHTML = members.map((m, i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${m.name}</td>
+      <td><strong>${formatNumber(m.count)}</strong></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="progress-bar" style="width:80px;"><div class="fill" style="width:${(m.count/members[0].count*100).toFixed(0)}%"></div></div>
+          <span style="font-size:11px;color:var(--text2);">${(m.count/total*100).toFixed(1)}%</span>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadFireRanking() {
+  const members = await fetchAPI('/fire-extinguisher/ranking');
+  const total = members.reduce((s, m) => s + m.count, 0);
+  document.getElementById('fireRankTable').innerHTML = members.map((m, i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${m.name}</td>
+      <td><strong>${formatNumber(m.count)}</strong></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="progress-bar" style="width:80px;"><div class="fill" style="width:${(m.count/members[0].count*100).toFixed(0)}%"></div></div>
+          <span style="font-size:11px;color:var(--text2);">${(m.count/total*100).toFixed(1)}%</span>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ========== 计划执行明细 ==========
+async function loadTaskDetails() {
+  const tasks = await fetchAPI('/tasks/details');
+  document.getElementById('taskDetailTable').innerHTML = tasks.map(t => {
+    const rate = t.total > 0 ? ((t.completed / t.total) * 100).toFixed(1) : 0;
+    return `
+      <tr>
+        <td>${t.name}</td>
+        <td>${formatNumber(t.total)}</td>
+        <td><span class="badge badge-green">${formatNumber(t.completed)}</span></td>
+        <td><span class="badge badge-yellow">${formatNumber(t.overdue_complete)}</span></td>
+        <td><span class="badge badge-red">${formatNumber(t.overdue_incomplete)}</span></td>
+        <td><span class="badge badge-blue">${formatNumber(t.incomplete)}</span></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="progress-bar" style="width:100px;"><div class="fill" style="width:${rate}%"></div></div>
+            <span style="font-weight:600;">${rate}%</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ========== 最新记录 ==========
+async function loadLatestRecords() {
+  const records = await fetchAPI('/records/latest?limit=15');
+  document.getElementById('latestRecordsTable').innerHTML = records.map(r => `
+    <tr>
+      <td>${r.record_id}</td>
+      <td>${r.记录单名称}</td>
+      <td>${r.记录人}</td>
+      <td>${formatDate(r.记录时间)}</td>
+      <td><span class="badge badge-green">${r.状态}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ========== 加载全部 ==========
+async function loadAllData() {
+  try {
+    document.getElementById('statsRow').innerHTML = '<div class="loading">正在刷新数据</div>';
+    
+    await Promise.all([
+      loadStats(),
+      loadAlerts(),
+      loadMonthlyTrend(),
+      loadFormDist(),
+      loadTaskStatus(),
+      loadFireTrend(),
+      loadLightTrend(),
+      loadAidTrend(),
+      loadEyeTrend(),
+      loadPressure(),
+      loadGas(),
+      loadResults(),
+      loadMemberRanking(),
+      loadFireRanking(),
+      loadTaskDetails(),
+      loadLatestRecords()
+    ]);
+    
+    console.log('✅ 数据刷新完成:', new Date().toLocaleString('zh-CN'));
+  } catch (err) {
+    console.error('❌ 数据加载失败:', err);
+    document.getElementById('statsRow').innerHTML = `<div style="color:#ef4444;padding:20px;">❌ 数据加载失败: ${err.message}</div>`;
+  }
+}
+
+// 首次加载
+loadAllData();
+
+// 每5分钟自动刷新
+setInterval(loadAllData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
