@@ -249,63 +249,6 @@ async function loadEyeTrend() {
   });
 }
 
-// ========== 压力表状态 ==========
-async function loadPressure() {
-  const data = await fetchAPI('/pressure-gauge/status');
-  const colorMap = { '正常（检验通过）': '#10b981', '异常（超期未检）': '#ef4444' };
-  destroyChart('pressure');
-  charts.pressure = new Chart(document.getElementById('pressureChart'), {
-    type: 'pie',
-    data: {
-      labels: data.map(d => d.status),
-      datasets: [{ data: data.map(d => d.count), backgroundColor: data.map(d => colorMap[d.status] || '#64748b') }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
-  });
-}
-
-// ========== 气瓶状态 ==========
-async function loadGas() {
-  const data = await fetchAPI('/fire-cylinder/status');
-  const colorMap = { '正常使用': '#10b981', '库存未检': '#f59e0b', '压力不足': '#ef4444' };
-  destroyChart('gas');
-  charts.gas = new Chart(document.getElementById('gasChart'), {
-    type: 'pie',
-    data: {
-      labels: data.map(d => d.status),
-      datasets: [{ data: data.map(d => d.count), backgroundColor: data.map(d => colorMap[d.status] || '#64748b') }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
-  });
-}
-
-// ========== 检查结果汇总 ==========
-async function loadResults() {
-  const params = new URLSearchParams();
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  if (startDate) params.set('startDate', startDate);
-  if (endDate) params.set('endDate', endDate);
-  const fire = await fetchAPI(`/fire-extinguisher/results?${params}`);
-  const light = await fetchAPI(`/emergency-lights/results?${params}`);
-  const allResults = {};
-  fire.forEach(r => { allResults['灭火器-' + r.result] = r.count; });
-  light.forEach(r => { allResults['应急灯-' + r.result] = r.count; });
-  
-  destroyChart('result');
-  charts.result = new Chart(document.getElementById('resultChart'), {
-    type: 'doughnut',
-    data: {
-      labels: Object.keys(allResults),
-      datasets: [{
-        data: Object.values(allResults),
-        backgroundColor: ['#10b981', '#ef4444', '#10b981', '#ef4444']
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
-  });
-}
-
 // ========== 人员排行 ==========
 async function loadMemberRanking() {
   const params = new URLSearchParams();
@@ -549,11 +492,14 @@ async function loadFireAnalysis() {
   fireAnalysisData = await fetchAPI('/fire-extinguisher/analysis');
   // 填充筛选下拉
   const depts = [...new Set(fireAnalysisData.map(f => f.dept).filter(Boolean))].sort();
-  const mfs = [...new Set(fireAnalysisData.map(f => f.manufacturer).filter(Boolean))].sort();
+  const inspectors = [...new Set(fireAnalysisData.map(f => f.inspector).filter(Boolean))].sort();
+  const specs = [...new Set(fireAnalysisData.map(f => f.spec).filter(Boolean))].sort();
   document.getElementById('fireDeptFilter').innerHTML =
     '<option value="">全部责任部门</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
-  document.getElementById('fireMfFilter').innerHTML =
-    '<option value="">全部生产厂家</option>' + mfs.map(m => `<option value="${m}">${m}</option>`).join('');
+  document.getElementById('fireInspectorFilter').innerHTML =
+    '<option value="">全部点检人</option>' + inspectors.map(d => `<option value="${d}">${d}</option>`).join('');
+  document.getElementById('fireSpecFilter').innerHTML =
+    '<option value="">全部规格</option>' + specs.map(d => `<option value="${d}">${d}</option>`).join('');
   renderFireAnalysis();
   renderFireDetail();
 }
@@ -561,17 +507,20 @@ async function loadFireAnalysis() {
 function clearFireFilter() {
   document.getElementById('fireSearch').value = '';
   document.getElementById('fireDeptFilter').value = '';
-  document.getElementById('fireMfFilter').value = '';
+  document.getElementById('fireInspectorFilter').value = '';
+  document.getElementById('fireSpecFilter').value = '';
   renderFireDetail();
 }
 
 function renderFireDetail() {
   const kw = document.getElementById('fireSearch').value.trim().toLowerCase();
   const dept = document.getElementById('fireDeptFilter').value;
-  const mf = document.getElementById('fireMfFilter').value;
+  const inspector = document.getElementById('fireInspectorFilter').value;
+  const spec = document.getElementById('fireSpecFilter').value;
   const filtered = fireAnalysisData.filter(f => {
     if (dept && f.dept !== dept) return false;
-    if (mf && f.manufacturer !== mf) return false;
+    if (inspector && f.inspector !== inspector) return false;
+    if (spec && f.spec !== spec) return false;
     if (kw) {
       const hay = [f.code, f.spec, f.location, f.inspector, f.dept, f.manufacturer]
         .join(' ').toLowerCase();
@@ -624,35 +573,6 @@ function renderFireAnalysis() {
   });
 }
 
-// ========== 计划任务到期分析 ==========
-async function loadTaskDeadline() {
-  const deadline = await fetchAPI('/tasks/deadline?days=30');
-  document.getElementById('deadlineTable').innerHTML = deadline.length > 0 ? deadline.map(t => {
-    const statusBadge = t.status === '已逾期' ? 'badge-red' : t.status === '即将到期' ? 'badge-yellow' : 'badge-blue';
-    return `
-      <tr>
-        <td>${t.plan_name || t.plan_id}</td>
-        <td>${t.cycle_type || '-'}</td>
-        <td>${formatDateTime(t.start_time)}</td>
-        <td>${formatDateTime(t.end_time)}</td>
-        <td>${t.total_count}</td>
-        <td>${t.finish_count}</td>
-        <td><span class="badge badge-red">${t.unfinish_count}</span></td>
-        <td><span class="badge ${statusBadge}">${t.status}</span></td>
-      </tr>
-    `;
-  }).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;">暂无即将到期/超期任务</td></tr>';
-  
-  const overdue = await fetchAPI('/tasks/overdue');
-  document.getElementById('overdueTable').innerHTML = overdue.length > 0 ? overdue.map(t => `
-    <tr>
-      <td>${t.计划名称}</td>
-      <td><span class="badge badge-red">${t.状态}</span></td>
-      <td>${formatDateTime(t.截止时间)}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="3" style="text-align:center;color:#94a3b8;">暂无超期记录</td></tr>';
-}
-
 // ========== 消防应急灯多维度分析 ==========
 async function loadLightAnalysis() {
   const params = new URLSearchParams();
@@ -662,7 +582,15 @@ async function loadLightAnalysis() {
   if (endDate) params.set('endDate', endDate);
 
   lightAnalysisData = await fetchAPI(`/emergency-lights/analysis?${params}`);
-  document.getElementById('lightDetailCount').textContent = formatNumber((lightAnalysisData.devices || []).length);
+  // 填充明细筛选下拉
+  const devices = lightAnalysisData.devices || [];
+  const depts = [...new Set(devices.map(d => d.dept).filter(Boolean))].sort();
+  const inspectors = [...new Set(devices.map(d => d.inspector).filter(Boolean))].sort();
+  document.getElementById('lightDeptFilter').innerHTML =
+    '<option value="">全部责任部门</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+  document.getElementById('lightInspectorFilter').innerHTML =
+    '<option value="">全部点检人</option>' + inspectors.map(d => `<option value="${d}">${d}</option>`).join('');
+  document.getElementById('lightDetailCount').textContent = formatNumber(devices.length);
   renderLightAnalysis();
   renderLightDetail();
 }
@@ -719,7 +647,11 @@ function renderLightAnalysis() {
 
 function renderLightDetail() {
   const kw = (document.getElementById('lightSearch').value || '').trim().toLowerCase();
+  const dept = document.getElementById('lightDeptFilter').value;
+  const inspector = document.getElementById('lightInspectorFilter').value;
   const rows = (lightAnalysisData.devices || []).filter(d => {
+    if (dept && d.dept !== dept) return false;
+    if (inspector && d.inspector !== inspector) return false;
     if (kw) {
       const hay = `${d.code || ''} ${d.location || ''} ${d.dept || ''} ${d.vendor || ''} ${d.inspector || ''}`.toLowerCase();
       if (!hay.includes(kw)) return false;
@@ -741,49 +673,3 @@ function renderLightDetail() {
   `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;">无匹配设备</td></tr>';
 }
 
-// ========== 按设备类型总览（基础码 + 检查记录 + 任务周期，随全局时间切片） ==========
-async function loadDeviceTypeOverview() {
-  const params = new URLSearchParams();
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  if (startDate) params.set('startDate', startDate);
-  if (endDate) params.set('endDate', endDate);
-  const list = await fetchAPI(`/device-type/overview?${params}`);
-  renderDeviceTypeOverview(list);
-}
-
-function renderDeviceTypeOverview(list) {
-  document.getElementById('deviceTypeCount').textContent = list.length;
-  document.getElementById('deviceTypeTable').innerHTML = list.length ? list.map(d => {
-    const rateCls = d.taskRate != null
-      ? (d.taskRate >= 90 ? 'badge-green' : d.taskRate >= 70 ? 'badge-yellow' : 'badge-red')
-      : 'badge-blue';
-    return `
-      <tr>
-        <td style="font-weight:600;">${d.type}</td>
-        <td><strong>${formatNumber(d.baseCodes)}</strong></td>
-        <td>${formatNumber(d.inspections)}</td>
-        <td>${d.lastTime ? formatDateTime(d.lastTime) : '-'}</td>
-        <td>${formatNumber(d.taskTotal)}</td>
-        <td>${formatNumber(d.taskCompleted)}</td>
-        <td><span class="badge ${rateCls}">${d.taskRate != null ? d.taskRate + '%' : '-'}</span></td>
-      </tr>
-    `;
-  }).join('') : '<tr><td colspan="7" style="text-align:center;color:#94a3b8;">无数据</td></tr>';
-
-  const top = list.slice(0, 12);
-  destroyChart('deviceType');
-  charts.deviceType = new Chart(document.getElementById('deviceTypeChart'), {
-    type: 'bar',
-    data: {
-      labels: top.map(d => d.type),
-      datasets: [{ label: '检查记录数', data: top.map(d => d.inspections), backgroundColor: '#06b6d4' }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 16 } },
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
-    }
-  });
-}
