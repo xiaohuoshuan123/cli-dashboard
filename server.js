@@ -1,3 +1,8 @@
+// 固定进程时区为北京时间：草料官方库 DATETIME 以北京时间存储，但部署在 Railway(UTC) 时
+// mysql2 会把 DATETIME 当成 UTC 解析，序列化后浏览器按中国时区 +8 显示，导致"19:26 实为 11:26"
+// 的 8 小时偏差。固定 TZ=Asia/Shanghai 后，mysql2 按北京时间解析，序列化为 03:26Z，浏览器显示 11:26。
+process.env.TZ = process.env.TZ || 'Asia/Shanghai';
+
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
