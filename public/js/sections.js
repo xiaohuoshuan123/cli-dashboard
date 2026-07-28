@@ -1,6 +1,11 @@
 // ========== 加载核心指标 ==========
 async function loadStats() {
-  const stats = await fetchAPI('/stats');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const stats = await fetchAPI(`/stats?${params}`);
   document.getElementById('statsRow').innerHTML = `
     <div class="stat-card fade-in">
       <div class="number">${formatNumber(stats.codeCount)}</div>
@@ -38,6 +43,11 @@ async function loadStats() {
 async function loadAlerts() {
   const container = document.getElementById('alertsContainer');
   const alerts = [];
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
   
   // 压力表异常
   const pressure = await fetchAPI('/pressure-gauge/status');
@@ -54,14 +64,14 @@ async function loadAlerts() {
   }
   
   // 灭火器异常
-  const fireResults = await fetchAPI('/fire-extinguisher/results');
+  const fireResults = await fetchAPI(`/fire-extinguisher/results?${params}`);
   const fireBad = fireResults.find(f => f.result && f.result.includes('异常'));
   if (fireBad) {
     alerts.push(`<div class="alert alert-warn">⚠️ 灭火器检查异常 ${fireBad.count} 条记录</div>`);
   }
   
   // 超期任务
-  const overdue = await fetchAPI('/tasks/overdue');
+  const overdue = await fetchAPI(`/tasks/overdue?${params}`);
   if (overdue && overdue.length > 0) {
     alerts.push(`<div class="alert alert-danger">⚠️ 超期/未完成计划任务 ${overdue.length} 条，需跟进</div>`);
   }
@@ -271,8 +281,13 @@ async function loadGas() {
 
 // ========== 检查结果汇总 ==========
 async function loadResults() {
-  const fire = await fetchAPI('/fire-extinguisher/results');
-  const light = await fetchAPI('/emergency-lights/results');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const fire = await fetchAPI(`/fire-extinguisher/results?${params}`);
+  const light = await fetchAPI(`/emergency-lights/results?${params}`);
   const allResults = {};
   fire.forEach(r => { allResults['灭火器-' + r.result] = r.count; });
   light.forEach(r => { allResults['应急灯-' + r.result] = r.count; });
@@ -372,7 +387,12 @@ async function loadTaskDetails() {
 
 // ========== 最新记录 ==========
 async function loadLatestRecords() {
-  const records = await fetchAPI('/records/latest?limit=15');
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const records = await fetchAPI(`/records/latest?limit=15&${params}`);
   document.getElementById('latestRecordsTable').innerHTML = records.map(r => `
     <tr>
       <td>${r.record_id}</td>
@@ -730,4 +750,51 @@ function renderLightAbnormal() {
       <td>${a.note ? a.note : '<span style="color:#94a3b8;">（无说明）</span>'}</td>
     </tr>
   `).join('') : '<tr><td colspan="4" style="text-align:center;color:#16a34a;">✅ 暂无异常记录</td></tr>';
+}
+
+// ========== 按设备类型总览（基础码 + 检查记录 + 任务周期，随全局时间切片） ==========
+async function loadDeviceTypeOverview() {
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const list = await fetchAPI(`/device-type/overview?${params}`);
+  renderDeviceTypeOverview(list);
+}
+
+function renderDeviceTypeOverview(list) {
+  document.getElementById('deviceTypeCount').textContent = list.length;
+  document.getElementById('deviceTypeTable').innerHTML = list.length ? list.map(d => {
+    const rateCls = d.taskRate != null
+      ? (d.taskRate >= 90 ? 'badge-green' : d.taskRate >= 70 ? 'badge-yellow' : 'badge-red')
+      : 'badge-blue';
+    return `
+      <tr>
+        <td style="font-weight:600;">${d.type}</td>
+        <td><strong>${formatNumber(d.baseCodes)}</strong></td>
+        <td>${formatNumber(d.inspections)}</td>
+        <td>${d.lastTime ? formatDateTime(d.lastTime) : '-'}</td>
+        <td>${formatNumber(d.taskTotal)}</td>
+        <td>${formatNumber(d.taskCompleted)}</td>
+        <td><span class="badge ${rateCls}">${d.taskRate != null ? d.taskRate + '%' : '-'}</span></td>
+      </tr>
+    `;
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:#94a3b8;">无数据</td></tr>';
+
+  const top = list.slice(0, 12);
+  destroyChart('deviceType');
+  charts.deviceType = new Chart(document.getElementById('deviceTypeChart'), {
+    type: 'bar',
+    data: {
+      labels: top.map(d => d.type),
+      datasets: [{ label: '检查记录数', data: top.map(d => d.inspections), backgroundColor: '#06b6d4' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 16 } },
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
 }
