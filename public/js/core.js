@@ -6,7 +6,7 @@ let firstAidData = [];
 let maintenanceData = [];
 let currentFireTab = 'spec';
 let lightAnalysisData = null;
-let currentLightTab = 'device';
+let currentLightTab = 'inspector';
 
 // ========== 饼图/环形图数据标签插件（离线安全，不依赖 CDN）==========
 // 在每片扇区中心显示 数值 + 百分比
