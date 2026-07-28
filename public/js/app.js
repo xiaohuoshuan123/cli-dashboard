@@ -13,7 +13,6 @@ async function loadAllData() {
     loadAidTrend(),
     loadEyeTrend(),
     loadMemberRanking(),
-    loadFireRanking(),
     loadTaskDetails(),
     loadLatestRecords(),
     loadFirstAidExpiry(),
