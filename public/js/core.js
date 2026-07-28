@@ -89,7 +89,10 @@ async function validateToken(t) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), 14000);
   try {
-    const res = await fetch(`/api/auth/verify?token=${encodeURIComponent(t)}`, { signal: controller.signal });
+    const res = await fetch(`/api/auth/verify`, {
+      signal: controller.signal,
+      headers: { 'x-api-token': t }
+    });
     return res.status === 200;
   } catch (e) {
     return false;
@@ -153,13 +156,11 @@ async function fetchAPI(endpoint, timeout = 14000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
-    let url = `/api${endpoint}`;
+    const url = `/api${endpoint}`;
     const tok = getToken();
-    if (tok) {
-      const sep = url.includes('?') ? '&' : '?';
-      url += `${sep}token=${encodeURIComponent(tok)}`;
-    }
-    const res = await fetch(url, { signal: controller.signal });
+    const headers = {};
+    if (tok) headers['x-api-token'] = tok;
+    const res = await fetch(url, { signal: controller.signal, headers });
     if (res.status === 401) {
       showLogin();
       throw new Error('未授权：令牌缺失或已失效，请重新登录');
