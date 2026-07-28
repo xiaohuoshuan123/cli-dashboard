@@ -185,6 +185,16 @@ function formatNumber(n) {
   return n?.toLocaleString() || '0';
 }
 
+// 文本转义：避免单元格内容含 < & > 时破坏 Excel 表格结构（尤其原始库表导出）
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\r?\n/g, ' '); // 单元格内换行转空格，避免 Excel 行错位
+}
+
 function formatDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('zh-CN');
@@ -208,7 +218,9 @@ function destroyChart(id) {
 // ========== 表格导出 Excel（无依赖，HTML 表格转 .xls）==========
 // 导出当前表格（含筛选后）的可见行，中文以 UTF-8 BOM 保证不乱码。
 function downloadExcelHtml(tableHtml, fileName) {
-  const excel = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>td,th{border:1px solid #ddd;}</style></head><body>${tableHtml}</body></html>`;
+  // 确保 <table> 带 border 属性，Excel 渲染表格线更可靠
+  const safeHtml = tableHtml.replace(/<table(\s|>)/i, '<table border="1"$1');
+  const excel = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>td,th{border:1px solid #ddd;}</style></head><body>${safeHtml}</body></html>`;
   const blob = new Blob(['\ufeff' + excel], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -221,12 +233,30 @@ function downloadExcelHtml(tableHtml, fileName) {
 }
 
 function exportTable(tableId, fileName) {
-  const table = document.getElementById(tableId);
-  if (!table) { alert('找不到表格：' + tableId); return; }
-  // 去掉导出按钮自身，避免把"导出"写进表格
+  const el = document.getElementById(tableId);
+  if (!el) { alert('找不到表格：' + tableId); return; }
+  // 关键修复：id 通常挂在 <tbody> 上，必须用 closest('table') 取到真正的 <table> 根节点，
+  // 否则 outerHTML 只有 <tbody> 而无 <table> 包裹，Excel 打开会把所有数据塞进 A1 单元格。
+  const table = el.closest('table') || el;
   const clone = table.cloneNode(true);
   clone.querySelectorAll('.btn-export').forEach(b => b.remove());
   downloadExcelHtml(clone.outerHTML, fileName);
+}
+
+// 导出草料原始批量码信息表（template_codeinfo_d10/d15），不做任何加工
+async function exportRawDevice(type, fileName) {
+  try {
+    const data = await fetchAPI(`/devices/raw?type=${encodeURIComponent(type)}`);
+    const cols = data.columns || [];
+    const rows = data.rows || [];
+    const head = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+    const body = rows.map(r =>
+      '<tr>' + cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join('') + '</tr>'
+    ).join('');
+    downloadExcelHtml(`<table border="1"><thead>${head}</thead><tbody>${body}</tbody></table>`, fileName);
+  } catch (e) {
+    alert('导出失败：' + e.message);
+  }
 }
 
 // 本地日期字符串（避免 toISOString 在凌晨因 UTC 偏移差一天）
