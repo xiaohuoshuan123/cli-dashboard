@@ -677,23 +677,22 @@ function switchLightTab(tab, el) {
 
 function renderLightAnalysis() {
   const tab = currentLightTab;
-  const titleMap = { device: '按设备分布', inspector: '按检查人分布', result: '按检查结果分布' };
+  const titleMap = { inspector: '按检查人分布', department: '按责任部门分布', vendor: '按生产厂商分布' };
   document.getElementById('lightAnalysisTitle').textContent =
     `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 条记录）`;
 
   let labels = [], data = [], colors = null;
-  if (tab === 'device') {
-    // 设备较多，图表仅展示 Top20，完整明细见右侧表格
-    const top = lightAnalysisData.byDevice.slice(0, 20);
-    labels = top.map(d => d.device);
-    data = top.map(d => d.cnt);
-  } else if (tab === 'inspector') {
+  if (tab === 'inspector') {
     labels = lightAnalysisData.byInspector.map(d => d.inspector || '未知');
     data = lightAnalysisData.byInspector.map(d => d.cnt);
+  } else if (tab === 'department') {
+    const rows = (lightAnalysisData.byDepartment || []).map(d => ({ dept: d.dept || '（未填）', cnt: d.cnt }));
+    labels = rows.map(d => d.dept);
+    data = rows.map(d => d.cnt);
   } else {
-    labels = lightAnalysisData.byResult.map(d => d.result || '未知');
-    data = lightAnalysisData.byResult.map(d => d.cnt);
-    colors = lightAnalysisData.byResult.map(d => d.result === '正常' ? '#10b981' : '#ef4444');
+    const rows = (lightAnalysisData.byVendor || []).map(d => ({ vendor: d.vendor || '（未填）', cnt: d.cnt }));
+    labels = rows.map(d => d.vendor);
+    data = rows.map(d => d.cnt);
   }
 
   destroyChart('lightAnalysis');
