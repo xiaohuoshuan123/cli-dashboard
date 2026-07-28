@@ -193,6 +193,8 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')   // 防止跳出 HTML 属性（value="..." / title="..."）
+    .replace(/'/g, '&#39;')    // 防止跳出单引号属性与内联上下文
     .replace(/\r?\n/g, ' '); // 单元格内换行转空格，避免 Excel 行错位
 }
 
