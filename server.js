@@ -605,9 +605,9 @@ app.get('/api/tasks/details', async (req, res) => {
     let sql = `
       SELECT
         计划名称 as name,
-        GROUP_CONCAT(DISTINCT b.模板名称) as templates,
-        GROUP_CONCAT(DISTINCT b.目录) as categories,
-        COUNT(*) as total,
+        b.目录 as dir,
+        b.模板名称 as tpl,
+        COUNT(*) as cnt,
         SUM(CASE WHEN t.状态 = '完成' THEN 1 ELSE 0 END) as completed,
         SUM(CASE WHEN t.状态 = '超期未完成' THEN 1 ELSE 0 END) as overdue_incomplete,
         SUM(CASE WHEN t.状态 = '未完成' THEN 1 ELSE 0 END) as incomplete,
@@ -617,7 +617,7 @@ app.get('/api/tasks/details', async (req, res) => {
       WHERE 1=1
     `;
     const params = [];
-    
+
     if (req.query.startDate) {
       sql += ` AND 开始时间 >= ?`;
       params.push(req.query.startDate);
@@ -626,10 +626,44 @@ app.get('/api/tasks/details', async (req, res) => {
       sql += ` AND 开始时间 <= ?`;
       params.push(endVal(req.query.endDate));
     }
-    
-    sql += ` GROUP BY 计划名称 ORDER BY total DESC`;
+
+    sql += ` GROUP BY 计划名称, b.目录, b.模板名称`;
     const rows = await query(sql, params);
-    res.json(rows);
+
+    // 按计划名称汇总：状态计数累加；目录/模板取占比最高者为主，多类时标注"含其他N类"
+    // （草料库存在"一个计划名下挂了跨模板的码"，如灭火器计划混了应急灯码，故不展示全部目录避免误导）
+    const map = {};
+    for (const r of rows) {
+      if (!map[r.name]) map[r.name] = { name: r.name, total: 0, completed: 0, overdue_incomplete: 0, incomplete: 0, overdue_complete: 0, dirs: {}, tpls: {} };
+      const o = map[r.name];
+      o.total += Number(r.cnt);
+      o.completed += Number(r.completed);
+      o.overdue_incomplete += Number(r.overdue_incomplete);
+      o.incomplete += Number(r.incomplete);
+      o.overdue_complete += Number(r.overdue_complete);
+      if (r.dir) o.dirs[r.dir] = (o.dirs[r.dir] || 0) + Number(r.cnt);
+      if (r.tpl) o.tpls[r.tpl] = (o.tpls[r.tpl] || 0) + Number(r.cnt);
+    }
+    const result = Object.values(map).map(o => {
+      const dirs = Object.entries(o.dirs).sort((a, b) => b[1] - a[1]);
+      const tpls = Object.entries(o.tpls).sort((a, b) => b[1] - a[1]);
+      const mainDir = dirs.length ? dirs[0][0] : '-';
+      const mainTpl = tpls.length ? tpls[0][0] : '-';
+      const categories = dirs.length > 1 ? `${mainDir}（含其他${dirs.length - 1}类）` : mainDir;
+      const templates = tpls.length > 1 ? `${mainTpl}（含其他${tpls.length - 1}类）` : mainTpl;
+      return {
+        name: o.name,
+        templates,
+        categories,
+        total: o.total,
+        completed: o.completed,
+        overdue_incomplete: o.overdue_incomplete,
+        incomplete: o.incomplete,
+        overdue_complete: o.overdue_complete
+      };
+    }).sort((a, b) => b.total - a.total);
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -680,7 +714,7 @@ app.get('/api/records/latest', async (req, res) => {
         记录单名称,
         ${norm('记录人')} as 记录人,
         记录时间,
-        状态
+        码名称
       FROM base_table_data
       WHERE 1=1 ${dateCond}
       ORDER BY 记录时间 DESC
