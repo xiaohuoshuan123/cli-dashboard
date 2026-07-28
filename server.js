@@ -376,6 +376,45 @@ app.get('/api/emergency-lights/results', async (req, res) => {
   }
 });
 
+// 消防应急灯多维度分析（数据源：table_d16 点检记录）
+// 维度：按设备(码名称) / 按检查人(记录人) / 按检查结果(正常·异常) + 异常记录明细
+app.get('/api/emergency-lights/analysis', async (req, res) => {
+  try {
+    const params = [];
+    let where = ' WHERE 1=1';
+    if (req.query.startDate) { where += ' AND 记录时间 >= ?'; params.push(req.query.startDate); }
+    if (req.query.endDate) { where += ' AND 记录时间 <= ?'; params.push(req.query.endDate); }
+    const base = `FROM table_d16 ${where}`;
+
+    const totalRows = await query(`SELECT COUNT(*) AS c ${base}`, params);
+    const total = totalRows[0] ? totalRows[0].c : 0;
+
+    const byDevice = await query(
+      `SELECT \`码名称\` AS device, COUNT(*) AS cnt,
+              SUM(CASE WHEN \`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal,
+              MAX(\`记录时间\`) AS last_time
+       ${base} GROUP BY \`码名称\` ORDER BY cnt DESC`, params);
+
+    const byInspector = await query(
+      `SELECT \`记录人\` AS inspector, COUNT(*) AS cnt,
+              SUM(CASE WHEN \`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal
+       ${base} GROUP BY \`记录人\` ORDER BY cnt DESC`, params);
+
+    const byResult = await query(
+      `SELECT \`检查结果_3170565\` AS result, COUNT(*) AS cnt
+       ${base} GROUP BY \`检查结果_3170565\``, params);
+
+    const abnormal = await query(
+      `SELECT \`码名称\` AS device, \`记录人\` AS inspector, \`记录时间\` AS time,
+              \`情况说明/存在问题_3170567\` AS note, \`状态\` AS status
+       ${base} AND \`检查结果_3170565\` != '正常' ORDER BY \`记录时间\` DESC`, params);
+
+    res.json({ total, byDevice, byInspector, byResult, abnormal });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 急救药箱点检趋势
 app.get('/api/first-aid/trend', async (req, res) => {
   try {
