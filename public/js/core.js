@@ -268,17 +268,39 @@ function toLocalDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 
-// 日期选择器
-function setQuickDate(days) {
-  const end = new Date();
-  const start = new Date();
-  if (days > 0) {
-    start.setDate(start.getDate() - days);
-  } else {
-    start.setFullYear(2020, 0, 1);
+// 日期选择器（快捷范围）。所有边界按【北京时间 Asia/Shanghai】计算，
+// 用 UTC 偏移取北京时间分量，避免依赖浏览器所在时区。
+function pad2(n) { return String(n).padStart(2, '0'); }
+function ymd(y, m, d) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
+
+function setQuickDate(kind) {
+  const n = new Date();
+  // 北京时间对应的 instant：本地 now 的时区偏移补回 UTC，再 +8h
+  const bj = new Date(n.getTime() + n.getTimezoneOffset() * 60000 + 8 * 3600000);
+  const Y = bj.getUTCFullYear(), M = bj.getUTCMonth(), D = bj.getUTCDate(), dow = bj.getUTCDay();
+  let s, e;
+  if (kind === 'week') {                 // 本周：周一 00:00 ~ 现在
+    const back = (dow + 6) % 7;          // 周一=0
+    const sd = new Date(bj.getTime() - back * 86400000);
+    s = ymd(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate());
+    e = ymd(Y, M, D);
+  } else if (kind === 'month') {         // 本月：1 日 00:00 ~ 现在
+    s = ymd(Y, M, 1); e = ymd(Y, M, D);
+  } else if (kind === 'lastMonth') {     // 上月：上月 1 日 ~ 上月最后一天
+    const lm = M - 1, ly = lm < 0 ? Y - 1 : Y, lmm = (lm + 12) % 12;
+    const lastDay = new Date(Date.UTC(ly, lmm + 1, 0)).getUTCDate();
+    s = ymd(ly, lmm, 1); e = ymd(ly, lmm, lastDay);
+  } else if (kind === 'year') {          // 本年：1 月 1 日 ~ 现在
+    s = ymd(Y, 0, 1); e = ymd(Y, M, D);
+  } else if (typeof kind === 'number' && kind > 0) {  // 近 N 天（滚动）
+    const sd = new Date(bj.getTime() - kind * 86400000);
+    s = ymd(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate());
+    e = ymd(Y, M, D);
+  } else {                               // 全部
+    s = '2020-01-01'; e = ymd(Y, M, D);
   }
-  document.getElementById('startDate').value = toLocalDateStr(start);
-  document.getElementById('endDate').value = toLocalDateStr(end);
+  document.getElementById('startDate').value = s;
+  document.getElementById('endDate').value = e;
   loadAllData();
 }
 
