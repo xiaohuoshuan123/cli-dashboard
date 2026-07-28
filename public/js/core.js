@@ -205,6 +205,14 @@ function destroyChart(id) {
   }
 }
 
+// 本地日期字符串（避免 toISOString 在凌晨因 UTC 偏移差一天）
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // 日期选择器
 function setQuickDate(days) {
   const end = new Date();
@@ -214,8 +222,8 @@ function setQuickDate(days) {
   } else {
     start.setFullYear(2020, 0, 1);
   }
-  document.getElementById('startDate').value = start.toISOString().split('T')[0];
-  document.getElementById('endDate').value = end.toISOString().split('T')[0];
+  document.getElementById('startDate').value = toLocalDateStr(start);
+  document.getElementById('endDate').value = toLocalDateStr(end);
   loadAllData();
 }
 
