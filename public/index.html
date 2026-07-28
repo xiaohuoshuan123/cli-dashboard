@@ -646,10 +646,10 @@ tr:hover { background: #f8fafc; }
     </div>
   </div>
 
-  <!-- 消防应急灯多维度分析 -->
+  <!-- 消防应急灯多维度分析（数据源：d15 设备主数据，共 83 个设备） -->
   <div class="section">
     <div class="section-title">
-      💡 消防应急灯多维度分析
+      💡 消防应急灯多维度分析（设备台账 · d15）
       <button class="toggle-btn" onclick="toggleSection('lightAnalysis')">收起</button>
     </div>
     <div class="section-content" id="lightAnalysis">
@@ -660,35 +660,22 @@ tr:hover { background: #f8fafc; }
       </div>
       <div class="grid-2">
         <div class="card">
-          <div class="card-title" id="lightAnalysisTitle">按设备分布</div>
+          <div class="card-title" id="lightAnalysisTitle">按检查人分布</div>
           <div class="chart-container chart-h300">
             <canvas id="lightAnalysisChart"></canvas>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">设备检查明细（共 <span id="lightDetailCount">0</span> 个设备 · 总记录 <span id="lightAnalysisTotal">0</span> 条）</div>
+          <div class="card-title">设备检查明细（共 <span id="lightDetailCount">0</span> 个设备）</div>
           <div class="filter-bar">
-            <input type="text" id="lightSearch" placeholder="🔍 查找设备编码" oninput="renderLightDetail()" style="min-width:200px;">
-            <select id="lightResultFilter" onchange="renderLightDetail()">
-              <option value="">全部设备</option>
-              <option value="abnormal">仅看有异常</option>
-            </select>
+            <input type="text" id="lightSearch" placeholder="🔍 查找编码/位置/责任部门/厂商" oninput="renderLightDetail()" style="min-width:200px;">
           </div>
           <div class="table-wrap" style="max-height:300px;">
             <table>
-              <thead><tr><th>设备编码</th><th>检查次数</th><th>异常</th><th>最近检查时间</th></tr></thead>
+              <thead><tr><th>设备编码</th><th>安装位置</th><th>责任部门</th><th>生产厂家</th><th>点检人</th><th>状态</th></tr></thead>
               <tbody id="lightDetailTable"></tbody>
             </table>
           </div>
-        </div>
-      </div>
-      <div class="card" style="margin-top:16px;">
-        <div class="card-title">⚠️ 异常记录明细（检查结果非「正常」）</div>
-        <div class="table-wrap" style="max-height:220px;">
-          <table>
-            <thead><tr><th>设备</th><th>检查人</th><th>检查时间</th><th>情况说明/存在问题</th></tr></thead>
-            <tbody id="lightAbnormalTable"></tbody>
-          </table>
         </div>
       </div>
     </div>
