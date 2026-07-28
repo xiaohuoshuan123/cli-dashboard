@@ -36,6 +36,11 @@ const pool = mysql.createPool({
   keepAliveInitialDelay: 10000
 });
 
+// 姓名/文本归一化：去全角空格 + 首尾空格，避免「 赵宏亮」类前导空格被当成不同人（影响发奖对账）
+function norm(col) {
+  return `TRIM(REPLACE(${col}, UNHEX('E38080'), ' '))`;
+}
+
 // ========== 查询缓存层（P0） ==========
 // 默认对统计类查询缓存 60s，降低 RDS 压力与官方库限流风险。
 // 健康检查(SELECT 1)不缓存；可通过 CACHE_TTL 环境变量调整秒数（0=关闭）。
@@ -531,7 +536,7 @@ app.get('/api/fire-cylinder/status', async (req, res) => {
 app.get('/api/members/ranking', async (req, res) => {
   try {
     let sql = `
-      SELECT 记录人 as name, COALESCE(NULLIF(记录单名称,''),'未知表单') as form, COUNT(*) as cnt
+      SELECT ${norm('记录人')} as name, COALESCE(NULLIF(记录单名称,''),'未知表单') as form, COUNT(*) as cnt
       FROM base_table_data
       WHERE 记录人 IS NOT NULL AND 记录人 != ''
     `;
@@ -546,7 +551,7 @@ app.get('/api/members/ranking', async (req, res) => {
       params.push(endVal(req.query.endDate));
     }
     
-    sql += ` GROUP BY 记录人, form`;
+    sql += ` GROUP BY name, form HAVING name != ''`;
     const rows = await query(sql, params);
 
     // 组装枢纽结构：forms 按总提交数降序作为列，members 按个人总数降序作为行
@@ -670,7 +675,7 @@ app.get('/api/records/latest', async (req, res) => {
       SELECT 
         record_id,
         记录单名称,
-        记录人,
+        ${norm('记录人')} as 记录人,
         记录时间,
         状态
       FROM base_table_data
