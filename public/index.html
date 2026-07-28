@@ -507,13 +507,13 @@ tr:hover { background: #f8fafc; }
   <div class="section">
     <div class="grid-2">
       <div class="card">
-        <div class="card-title">📋 各表单记录分布</div>
+        <div class="card-title">📋 各表单记录分布（来源：base_table_data）</div>
         <div class="chart-container chart-h280">
           <canvas id="formDistChart"></canvas>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">📊 计划执行状态分布</div>
+        <div class="card-title">📊 计划执行状态分布（来源：code_task_log）</div>
         <div class="chart-container chart-h280">
           <canvas id="taskStatusChart"></canvas>
         </div>
@@ -524,7 +524,7 @@ tr:hover { background: #f8fafc; }
   <!-- 急救药箱药品有效期 -->
   <div class="section">
     <div class="section-title">
-      💊 急救药箱药品有效期监控
+      💊 急救药箱药品有效期监控（来源：template_codeinfo_d25）
       <button class="toggle-btn" onclick="toggleSection('firstAidExpiry')">收起</button>
     </div>
     <div class="section-content" id="firstAidExpiry">
@@ -555,7 +555,7 @@ tr:hover { background: #f8fafc; }
   <!-- 灭火器维修充装预警 -->
   <div class="section">
     <div class="section-title">
-      🔥 灭火器维修充装预警
+      🔥 灭火器维修充装预警（来源：template_codeinfo_d10）
       <button class="toggle-btn" onclick="toggleSection('fireMaintenance')">收起</button>
     </div>
     <div class="section-content" id="fireMaintenance">
@@ -592,7 +592,7 @@ tr:hover { background: #f8fafc; }
   <!-- 灭火器强制报废预警 -->
   <div class="section">
     <div class="section-title">
-      🛢️ 灭火器强制报废预警
+      🛢️ 灭火器强制报废预警（来源：template_codeinfo_d10）
       <button class="toggle-btn" onclick="toggleSection('fireScrap')">收起</button>
     </div>
     <div class="section-content" id="fireScrap">
@@ -627,7 +627,7 @@ tr:hover { background: #f8fafc; }
   <!-- 灭火器多维度分析 -->
   <div class="section">
     <div class="section-title">
-      📊 灭火器多维度分析
+      📊 灭火器多维度分析（来源：template_codeinfo_d10）
       <button class="toggle-btn" onclick="toggleSection('fireAnalysis')">收起</button>
     </div>
     <div class="section-content" id="fireAnalysis">
@@ -645,7 +645,7 @@ tr:hover { background: #f8fafc; }
           </div>
         </div>
         <div class="card">
-          <div class="card-title">灭火器明细列表（共 <span id="fireDetailCount">0</span> 个）</div>
+          <div class="card-title">灭火器明细列表（共 <span id="fireDetailCount">0</span> 个 · 来源 template_codeinfo_d10）</div>
           <div class="filter-bar">
             <input type="text" id="fireSearch" placeholder="🔍 精确查找：编号/名称/位置/点检人/部门/厂家" oninput="renderFireDetail()" style="min-width:240px;">
             <select id="fireDeptFilter" onchange="renderFireDetail()"><option value="">全部责任部门</option></select>
@@ -653,7 +653,7 @@ tr:hover { background: #f8fafc; }
             <select id="fireSpecFilter" onchange="renderFireDetail()"><option value="">全部规格</option></select>
             <button class="tab" onclick="clearFireFilter()">清空筛选</button>
           </div>
-          <div class="tb-bar"><button class="btn-export" onclick="exportTable('fireDetailTable','灭火器明细列表')">📥 导出Excel</button></div>
+          <div class="tb-bar"><button class="btn-export" onclick="exportRawDevice('extinguisher','灭火器设备清单-原始数据-template_codeinfo_d10')">📥 导出原始库表(Excel)</button></div>
           <div class="table-wrap" style="max-height:300px;">
             <table>
               <thead><tr><th>编号</th><th>名称</th><th>位置</th><th>点检人</th><th>责任部门</th><th>生产厂家</th><th>强制报废日期</th></tr></thead>
@@ -668,7 +668,7 @@ tr:hover { background: #f8fafc; }
   <!-- 消防应急灯多维度分析（数据源：d15 设备主数据，共 83 个设备） -->
   <div class="section">
     <div class="section-title">
-      💡 消防应急灯多维度分析（设备台账 · d15）
+      💡 消防应急灯多维度分析（来源：template_codeinfo_d15）
       <button class="toggle-btn" onclick="toggleSection('lightAnalysis')">收起</button>
     </div>
     <div class="section-content" id="lightAnalysis">
@@ -685,13 +685,13 @@ tr:hover { background: #f8fafc; }
           </div>
         </div>
         <div class="card">
-          <div class="card-title">消防应急灯明细表（共 <span id="lightDetailCount">0</span> 个设备）</div>
+          <div class="card-title">消防应急灯明细表（共 <span id="lightDetailCount">0</span> 个设备 · 来源 template_codeinfo_d15）</div>
           <div class="filter-bar">
             <input type="text" id="lightSearch" placeholder="🔍 查找编码/位置/责任部门/厂商/点检人" oninput="renderLightDetail()" style="min-width:200px;">
             <select id="lightDeptFilter" onchange="renderLightDetail()"><option value="">全部责任部门</option></select>
             <select id="lightInspectorFilter" onchange="renderLightDetail()"><option value="">全部点检人</option></select>
           </div>
-          <div class="tb-bar"><button class="btn-export" onclick="exportTable('lightDetailTable','消防应急灯明细表')">📥 导出Excel</button></div>
+          <div class="tb-bar"><button class="btn-export" onclick="exportRawDevice('light','消防应急灯设备清单-原始数据-template_codeinfo_d15')">📥 导出原始库表(Excel)</button></div>
           <div class="table-wrap" style="max-height:300px;">
             <table>
               <thead><tr><th>设备编码</th><th>安装位置</th><th>责任部门</th><th>生产厂家</th><th>点检人</th><th>状态</th></tr></thead>
@@ -712,25 +712,25 @@ tr:hover { background: #f8fafc; }
     <div class="section-content" id="checkTrends">
       <div class="grid-2">
         <div class="card">
-          <div class="card-title">灭火器检查趋势</div>
+          <div class="card-title">灭火器检查趋势（来源：table_d19）</div>
           <div class="chart-container chart-h250">
             <canvas id="fireChart"></canvas>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">消防应急灯检查趋势</div>
+          <div class="card-title">消防应急灯检查趋势（来源：table_d16）</div>
           <div class="chart-container chart-h250">
             <canvas id="lightChart"></canvas>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">急救药箱点检趋势</div>
+          <div class="card-title">急救药箱点检趋势（来源：table_d22）</div>
           <div class="chart-container chart-h250">
             <canvas id="aidChart"></canvas>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">洗眼器点检趋势</div>
+          <div class="card-title">洗眼器点检趋势（来源：table_d27）</div>
           <div class="chart-container chart-h250">
             <canvas id="eyeChart"></canvas>
           </div>
@@ -747,7 +747,7 @@ tr:hover { background: #f8fafc; }
     </div>
     <div class="section-content" id="memberRank">
       <div class="card">
-        <div class="card-title">总记录提交 TOP 20（按记录单枢纽分析）<span id="memberRankCount" style="font-weight:normal;font-size:12px;color:var(--text2);margin-left:8px;"></span></div>
+        <div class="card-title">总记录提交 TOP 20（按记录单枢纽分析 · 来源：base_table_data）<span id="memberRankCount" style="font-weight:normal;font-size:12px;color:var(--text2);margin-left:8px;"></span></div>
         <div class="tb-bar"><button class="btn-export" onclick="exportMemberRanking()">📥 导出Excel（全部人员）</button></div>
         <div class="table-wrap">
           <table>
@@ -762,7 +762,7 @@ tr:hover { background: #f8fafc; }
   <!-- 计划执行明细 -->
   <div class="section">
     <div class="section-title">
-      📅 计划执行明细
+      📅 计划执行明细（来源：code_task_log ⊕ base_codeinfo）
       <button class="toggle-btn" onclick="toggleSection('taskDetail')">收起</button>
     </div>
     <div class="section-content" id="taskDetail">
@@ -771,7 +771,7 @@ tr:hover { background: #f8fafc; }
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>计划名称</th><th>总数</th><th>完成</th><th>超期完成</th><th>超期未完成</th><th>未完成</th><th>完成率</th></tr>
+              <tr><th>计划名称</th><th>涉及模板</th><th>所属目录</th><th>总数</th><th>完成</th><th>超期完成</th><th>超期未完成</th><th>未完成</th><th>完成率</th></tr>
             </thead>
             <tbody id="taskDetailTable"></tbody>
           </table>
@@ -783,7 +783,7 @@ tr:hover { background: #f8fafc; }
   <!-- 最新记录 -->
   <div class="section">
     <div class="section-title">
-      🕐 最新提交记录
+      🕐 最新提交记录（来源：base_table_data）
       <button class="toggle-btn" onclick="toggleSection('latestRecords')">收起</button>
     </div>
     <div class="section-content" id="latestRecords">
