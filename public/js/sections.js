@@ -662,10 +662,9 @@ async function loadLightAnalysis() {
   if (endDate) params.set('endDate', endDate);
 
   lightAnalysisData = await fetchAPI(`/emergency-lights/analysis?${params}`);
-  document.getElementById('lightAnalysisTotal').textContent = formatNumber(lightAnalysisData.total);
+  document.getElementById('lightDetailCount').textContent = formatNumber((lightAnalysisData.devices || []).length);
   renderLightAnalysis();
   renderLightDetail();
-  renderLightAbnormal();
 }
 
 function switchLightTab(tab, el) {
@@ -679,7 +678,7 @@ function renderLightAnalysis() {
   const tab = currentLightTab;
   const titleMap = { inspector: '按检查人分布', department: '按责任部门分布', vendor: '按生产厂商分布' };
   document.getElementById('lightAnalysisTitle').textContent =
-    `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 条记录）`;
+    `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 个设备）`;
 
   let labels = [], data = [], colors = null;
   if (tab === 'inspector') {
@@ -720,35 +719,26 @@ function renderLightAnalysis() {
 
 function renderLightDetail() {
   const kw = (document.getElementById('lightSearch').value || '').trim().toLowerCase();
-  const rf = document.getElementById('lightResultFilter').value;
-  const rows = (lightAnalysisData.byDevice || []).filter(d => {
-    if (rf === 'abnormal' && (!d.abnormal || d.abnormal == 0)) return false;
-    if (kw && !(d.device || '').toLowerCase().includes(kw)) return false;
+  const rows = (lightAnalysisData.devices || []).filter(d => {
+    if (kw) {
+      const hay = `${d.code || ''} ${d.location || ''} ${d.dept || ''} ${d.vendor || ''} ${d.inspector || ''}`.toLowerCase();
+      if (!hay.includes(kw)) return false;
+    }
     return true;
   });
   document.getElementById('lightDetailCount').textContent = rows.length;
   document.getElementById('lightDetailTable').innerHTML = rows.map(d => `
     <tr>
-      <td style="font-weight:600;">${d.device}</td>
-      <td><strong>${formatNumber(d.cnt)}</strong></td>
-      <td>${d.abnormal > 0
-        ? `<span class="badge badge-red">异常${d.abnormal}</span>`
-        : '<span class="badge badge-green">正常</span>'}</td>
-      <td>${d.last_time ? formatDateTime(d.last_time) : '-'}</td>
+      <td style="font-weight:600;">${d.code || '-'}</td>
+      <td>${d.location || '-'}</td>
+      <td>${d.dept || '（未填）'}</td>
+      <td>${d.vendor || '-'}</td>
+      <td>${d.inspector || '（未填）'}</td>
+      <td>${d.status
+        ? `<span class="badge ${d.status.includes('异常') ? 'badge-red' : 'badge-green'}">${d.status}</span>`
+        : '-'}</td>
     </tr>
-  `).join('') || '<tr><td colspan="4" style="text-align:center;color:#94a3b8;">无匹配设备</td></tr>';
-}
-
-function renderLightAbnormal() {
-  const ab = lightAnalysisData.abnormal || [];
-  document.getElementById('lightAbnormalTable').innerHTML = ab.length ? ab.map(a => `
-    <tr>
-      <td style="font-weight:600;color:#ef4444;">${a.device || '-'}</td>
-      <td>${a.inspector || '-'}</td>
-      <td>${a.time ? formatDateTime(a.time) : '-'}</td>
-      <td>${a.note ? a.note : '<span style="color:#94a3b8;">（无说明）</span>'}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="4" style="text-align:center;color:#16a34a;">✅ 暂无异常记录</td></tr>';
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;">无匹配设备</td></tr>';
 }
 
 // ========== 按设备类型总览（基础码 + 检查记录 + 任务周期，随全局时间切片） ==========
