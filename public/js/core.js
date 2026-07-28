@@ -207,14 +207,8 @@ function destroyChart(id) {
 
 // ========== 表格导出 Excel（无依赖，HTML 表格转 .xls）==========
 // 导出当前表格（含筛选后）的可见行，中文以 UTF-8 BOM 保证不乱码。
-function exportTable(tableId, fileName) {
-  const table = document.getElementById(tableId);
-  if (!table) { alert('找不到表格：' + tableId); return; }
-  // 去掉导出按钮自身，避免把"导出"写进表格
-  const clone = table.cloneNode(true);
-  clone.querySelectorAll('.btn-export').forEach(b => b.remove());
-  const html = clone.outerHTML;
-  const excel = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>td,th{border:1px solid #ddd;}</style></head><body>${html}</body></html>`;
+function downloadExcelHtml(tableHtml, fileName) {
+  const excel = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>td,th{border:1px solid #ddd;}</style></head><body>${tableHtml}</body></html>`;
   const blob = new Blob(['\ufeff' + excel], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -224,6 +218,15 @@ function exportTable(tableId, fileName) {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportTable(tableId, fileName) {
+  const table = document.getElementById(tableId);
+  if (!table) { alert('找不到表格：' + tableId); return; }
+  // 去掉导出按钮自身，避免把"导出"写进表格
+  const clone = table.cloneNode(true);
+  clone.querySelectorAll('.btn-export').forEach(b => b.remove());
+  downloadExcelHtml(clone.outerHTML, fileName);
 }
 
 // 本地日期字符串（避免 toISOString 在凌晨因 UTC 偏移差一天）
