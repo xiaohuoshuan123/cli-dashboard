@@ -79,8 +79,11 @@ async function loadAlerts() {
   if (alerts.length === 0) {
     alerts.push(`<div class="alert alert-ok">✅ 所有设备运行正常，无异常状态</div>`);
   }
-  
-  container.innerHTML = alerts.join('');
+
+  container.innerHTML = `<div class="card" style="border-left:4px solid #3b82f6;margin-bottom:20px;">
+    <div class="card-title" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;">🩺 系统健康运行提醒</div>
+    <div class="health-alert-list">${alerts.join('')}</div>
+  </div>`;
 }
 
 // ========== 月度趋势 ==========
@@ -93,6 +96,22 @@ async function loadMonthlyTrend() {
   
   const data = await fetchAPI(`/trends/monthly?${params}`);
   destroyChart('monthly');
+  const valLabel = {
+    id: 'valLabel',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.fillStyle = '#475569';
+      ctx.font = '600 11px sans-serif';
+      ctx.textAlign = 'center';
+      meta.data.forEach((pt, i) => {
+        const v = chart.data.datasets[0].data[i];
+        ctx.fillText(v, pt.x, pt.y - 8);
+      });
+      ctx.restore();
+    }
+  };
   charts.monthly = new Chart(document.getElementById('monthlyChart'), {
     type: 'line',
     data: {
@@ -112,7 +131,8 @@ async function loadMonthlyTrend() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
-    }
+    },
+    plugins: [valLabel]
   });
 }
 
@@ -262,7 +282,7 @@ function buildMemberRankRows(members, forms) {
     return `
     <tr>
       <td>${i + 1}</td>
-      <td>${m.name}</td>
+      <td style="min-width:96px;white-space:nowrap;font-weight:500;">${m.name}</td>
       <td style="text-align:center;"><strong>${formatNumber(m.total)}</strong></td>
       ${cells}
     </tr>`;
@@ -284,7 +304,7 @@ async function loadMemberRanking() {
   // 动态表头：# / 姓名 / 总提交数 / 各记录单一列（含该表总数）
   document.getElementById('memberRankHead').innerHTML = `
     <tr>
-      <th>#</th><th>姓名</th><th>总提交数</th>
+      <th>#</th><th style="min-width:96px;white-space:nowrap;">姓名</th><th>总提交数</th>
       ${forms.map(f => `<th style="text-align:center;">${f}<br><span style="font-weight:normal;font-size:10px;color:var(--text2);">(共${formatNumber(data.formTotals[f] || 0)})</span></th>`).join('')}
     </tr>`;
 
@@ -355,7 +375,7 @@ async function loadLatestRecords() {
       <td>${r.记录单名称}</td>
       <td>${r.记录人}</td>
       <td>${formatDateTime(r.记录时间)}</td>
-      <td><span class="badge badge-green">${r.状态}</span></td>
+      <td>${r.码名称 || '-'}</td>
     </tr>
   `).join('');
 }
@@ -394,7 +414,7 @@ function renderFirstAidExpiry() {
       <td>${row.location || '-'}</td>
       <td>${row.recorder || '-'}</td>
       <td>${badge}</td>
-      <td><div class="med-wrap">${chips}</div></td>
+      <td class="med-cell"><div class="med-wrap">${chips}</div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;">无匹配药箱</td></tr>';
 }
@@ -569,19 +589,24 @@ function renderFireAnalysis() {
   const sorted = Object.entries(count).sort((a, b) => b[1] - a[1]);
   const colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16'];
   
+  const labels = sorted.map(s => s[0]);
+  const data = sorted.map(s => s[1]);
+  const useDoughnut = labels.length <= 6;
   destroyChart('fireAnalysis');
   charts.fireAnalysis = new Chart(document.getElementById('fireAnalysisChart'), {
-    type: 'doughnut',
-    data: {
-      labels: sorted.map(s => s[0]),
-      datasets: [{
-        data: sorted.map(s => s[1]),
-        backgroundColor: colors
-      }]
-    },
+    type: useDoughnut ? 'doughnut' : 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors }] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } }
+      plugins: {
+        legend: { display: useDoughnut, position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { enabled: true }
+      },
+      ...(useDoughnut ? {} : {
+        indexAxis: 'y',
+        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 11 } } } },
+        layout: { padding: { left: 8 } }
+      })
     }
   });
 }
@@ -635,25 +660,20 @@ function renderLightAnalysis() {
     data = rows.map(d => d.cnt);
   }
 
+  const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16','#a855f7','#14b8a6'];
+  const useDoughnut = labels.length <= 6;
   destroyChart('lightAnalysis');
   charts.lightAnalysis = new Chart(document.getElementById('lightAnalysisChart'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: '数量',
-        data,
-        backgroundColor: colors || '#10b981'
-      }]
-    },
+    type: useDoughnut ? 'doughnut' : 'bar',
+    data: { labels, datasets: [{ label: '数量', data, backgroundColor: palette }] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 16 } },
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true },
-        x: { ticks: { font: { size: 10 }, maxRotation: 60, minRotation: 0 } }
-      }
+      plugins: { legend: { display: useDoughnut, position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      ...(useDoughnut ? {} : {
+        indexAxis: 'y',
+        layout: { padding: { left: 8 } },
+        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 10 } } } }
+      })
     }
   });
 }
