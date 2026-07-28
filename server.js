@@ -59,6 +59,15 @@ async function query(sql, params = [], ttl = null) {
   return rows;
 }
 
+// 时间切片边界修正：前端日期选择器返回的是日期串(YYYY-MM-DD)。
+// SQL `列 <= 'YYYY-MM-DD'` 会被 MySQL 当作当天 00:00:00，导致"选了某天却漏掉当天数据"
+//（截止日少算一整天，表现为'最新提交记录没有今天的记录'）。
+// 因此日期型 endDate 统一追加 ' 23:59:59'，使切片包含截止日全天；startDate 保持 00:00:00 不变。
+function endVal(s) {
+  s = String(s == null ? '' : s).trim();
+  return s.length === 10 ? s + ' 23:59:59' : s;
+}
+
 // ========== 关键查询容错（P0） ==========
 // 草料官方库字段可能改名/表结构调整，提前探测实际列，缺失列降级为 NULL 而非整接口 500。
 const _colCache = new Map();
@@ -156,7 +165,7 @@ app.get('/api/stats', async (req, res) => {
     const dp = [];
     let dateWhere = '';
     if (req.query.startDate) { dateWhere += ' AND 记录时间 >= ?'; dp.push(req.query.startDate); }
-    if (req.query.endDate) { dateWhere += ' AND 记录时间 <= ?'; dp.push(req.query.endDate); }
+    if (req.query.endDate) { dateWhere += ' AND 记录时间 <= ?'; dp.push(endVal(req.query.endDate)); }
 
     const recordCount = (await query(`SELECT COUNT(*) as count FROM base_table_data WHERE 1=1 ${dateWhere}`, dp))[0];
 
@@ -211,7 +220,7 @@ app.get('/api/trends/monthly', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY DATE_FORMAT(记录时间, '%Y-%m') ORDER BY month`;
@@ -238,7 +247,7 @@ app.get('/api/forms/distribution', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY 记录单名称 ORDER BY count DESC`;
@@ -265,7 +274,7 @@ app.get('/api/tasks/status', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 开始时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY 状态`;
@@ -294,7 +303,7 @@ app.get('/api/fire-extinguisher/trend', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY DATE_FORMAT(记录时间, '%Y-%m') ORDER BY month`;
@@ -321,7 +330,7 @@ app.get('/api/fire-extinguisher/results', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY 检查结果_3171776`;
@@ -350,7 +359,7 @@ app.get('/api/emergency-lights/trend', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY DATE_FORMAT(记录时间, '%Y-%m') ORDER BY month`;
@@ -377,7 +386,7 @@ app.get('/api/emergency-lights/results', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY 检查结果_3170565`;
@@ -395,8 +404,10 @@ app.get('/api/emergency-lights/analysis', async (req, res) => {
     const params = [];
     let where = ' WHERE 1=1';
     if (req.query.startDate) { where += ' AND 记录时间 >= ?'; params.push(req.query.startDate); }
-    if (req.query.endDate) { where += ' AND 记录时间 <= ?'; params.push(req.query.endDate); }
+    if (req.query.endDate) { where += ' AND 记录时间 <= ?'; params.push(endVal(req.query.endDate)); }
     const base = `FROM table_d16 ${where}`;
+    // 关联应急灯主数据表 template_codeinfo_d15（含 责任部门 / 生产厂家），按 code_id 关联
+    const baseJoin = `FROM table_d16 t JOIN template_codeinfo_d15 m ON t.code_id = m.code_id ${where}`;
 
     const totalRows = await query(`SELECT COUNT(*) AS c ${base}`, params);
     const total = totalRows[0] ? totalRows[0].c : 0;
@@ -412,16 +423,22 @@ app.get('/api/emergency-lights/analysis', async (req, res) => {
               SUM(CASE WHEN \`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal
        ${base} GROUP BY \`记录人\` ORDER BY cnt DESC`, params);
 
-    const byResult = await query(
-      `SELECT \`检查结果_3170565\` AS result, COUNT(*) AS cnt
-       ${base} GROUP BY \`检查结果_3170565\``, params);
+    const byDepartment = await query(
+      `SELECT TRIM(REPLACE(m.\`责任部门_81036793872385\`, UNHEX('E38080'), ' ')) AS dept, COUNT(*) AS cnt,
+              SUM(CASE WHEN t.\`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal
+       ${baseJoin} GROUP BY TRIM(REPLACE(m.\`责任部门_81036793872385\`, UNHEX('E38080'), ' ')) ORDER BY cnt DESC`, params);
+
+    const byVendor = await query(
+      `SELECT TRIM(REPLACE(m.\`生产厂家_3170558\`, UNHEX('E38080'), ' ')) AS vendor, COUNT(*) AS cnt,
+              SUM(CASE WHEN t.\`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal
+       ${baseJoin} GROUP BY TRIM(REPLACE(m.\`生产厂家_3170558\`, UNHEX('E38080'), ' ')) ORDER BY cnt DESC`, params);
 
     const abnormal = await query(
       `SELECT \`码名称\` AS device, \`记录人\` AS inspector, \`记录时间\` AS time,
               \`情况说明/存在问题_3170567\` AS note, \`状态\` AS status
        ${base} AND \`检查结果_3170565\` != '正常' ORDER BY \`记录时间\` DESC`, params);
 
-    res.json({ total, byDevice, byInspector, byResult, abnormal });
+    res.json({ total, byDevice, byInspector, byDepartment, byVendor, abnormal });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -445,7 +462,7 @@ app.get('/api/first-aid/trend', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY DATE_FORMAT(记录时间, '%Y-%m') ORDER BY month`;
@@ -474,7 +491,7 @@ app.get('/api/eye-wash/trend', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY DATE_FORMAT(记录时间, '%Y-%m') ORDER BY month`;
@@ -531,7 +548,7 @@ app.get('/api/members/ranking', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY 记录人 ORDER BY count DESC LIMIT 20`;
@@ -558,7 +575,7 @@ app.get('/api/fire-extinguisher/ranking', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 记录时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY 记录人 ORDER BY count DESC LIMIT 15`;
@@ -591,7 +608,7 @@ app.get('/api/tasks/details', async (req, res) => {
     }
     if (req.query.endDate) {
       sql += ` AND 开始时间 <= ?`;
-      params.push(req.query.endDate);
+      params.push(endVal(req.query.endDate));
     }
     
     sql += ` GROUP BY 计划名称 ORDER BY total DESC`;
@@ -639,7 +656,7 @@ app.get('/api/records/latest', async (req, res) => {
     const params = [];
     let dateCond = '';
     if (req.query.startDate) { dateCond += ` AND 记录时间 >= ?`; params.push(req.query.startDate); }
-    if (req.query.endDate) { dateCond += ` AND 记录时间 <= ?`; params.push(req.query.endDate); }
+    if (req.query.endDate) { dateCond += ` AND 记录时间 <= ?`; params.push(endVal(req.query.endDate)); }
     params.push(limit);
     const rows = await query(`
       SELECT 
@@ -683,12 +700,12 @@ app.get('/api/device-type/overview', async (req, res) => {
     const ip = [];
     let iDate = '';
     if (req.query.startDate) { iDate += ` AND 记录时间 >= ?`; ip.push(req.query.startDate); }
-    if (req.query.endDate) { iDate += ` AND 记录时间 <= ?`; ip.push(req.query.endDate); }
+    if (req.query.endDate) { iDate += ` AND 记录时间 <= ?`; ip.push(endVal(req.query.endDate)); }
 
     const tp = [];
     let tDate = '';
     if (req.query.startDate) { tDate += ` AND 开始时间 >= ?`; tp.push(req.query.startDate); }
-    if (req.query.endDate) { tDate += ` AND 开始时间 <= ?`; tp.push(req.query.endDate); }
+    if (req.query.endDate) { tDate += ` AND 开始时间 <= ?`; tp.push(endVal(req.query.endDate)); }
 
     const codeRows = await query(
       `SELECT 目录, COUNT(*) as c FROM base_codeinfo WHERE 目录 IS NOT NULL AND 目录 != '' GROUP BY 目录`);
@@ -923,7 +940,7 @@ app.get('/api/tasks/overdue', async (req, res) => {
     const params = [];
     let dateCond = '';
     if (req.query.startDate) { dateCond += ` AND 截止时间 >= ?`; params.push(req.query.startDate); }
-    if (req.query.endDate) { dateCond += ` AND 截止时间 <= ?`; params.push(req.query.endDate); }
+    if (req.query.endDate) { dateCond += ` AND 截止时间 <= ?`; params.push(endVal(req.query.endDate)); }
     const rows = await query(`
       SELECT 
         计划名称,
