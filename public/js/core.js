@@ -5,6 +5,8 @@ let fireAnalysisData = [];
 let firstAidData = [];
 let maintenanceData = [];
 let currentFireTab = 'spec';
+let lightAnalysisData = null;
+let currentLightTab = 'device';
 
 // ========== 饼图/环形图数据标签插件（离线安全，不依赖 CDN）==========
 // 在每片扇区中心显示 数值 + 百分比
@@ -50,6 +52,32 @@ const pieLabelPlugin = {
   }
 };
 Chart.register(pieLabelPlugin);
+
+// ========== 柱状图数值标签插件（离线安全，不依赖 CDN）==========
+// 在每根柱子顶部居中显示其数值，满足"柱状分析图要体现数值"的需求。
+const barLabelPlugin = {
+  id: 'barValues',
+  afterDatasetsDraw(chart) {
+    if (chart.config.type !== 'bar') return;
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data || !meta.data.length) return;
+    const data = chart.data.datasets[0].data;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.font = '600 11px sans-serif';
+    ctx.fillStyle = '#334155';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    meta.data.forEach((bar, i) => {
+      const v = data[i];
+      if (v === null || v === undefined) return;
+      const text = (typeof formatNumber === 'function') ? formatNumber(v) : String(v);
+      ctx.fillText(text, bar.x, bar.y - 3);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(barLabelPlugin);
 
 // ========== 访问令牌 / 登录弹窗 ==========
 // 令牌保存在 sessionStorage（关闭标签页即失效），避免明文暴露在 URL 中。
