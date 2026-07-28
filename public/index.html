@@ -694,6 +694,33 @@ tr:hover { background: #f8fafc; }
     </div>
   </div>
 
+  <!-- 按设备类型总览 -->
+  <div class="section">
+    <div class="section-title">
+      📊 按设备类型总览（基础码 + 检查记录 + 任务周期）
+      <button class="toggle-btn" onclick="toggleSection('deviceType')">收起</button>
+    </div>
+    <div class="section-content" id="deviceType">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">各设备类型检查记录数（随顶部时间切片）</div>
+          <div class="chart-container chart-h300">
+            <canvas id="deviceTypeChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">设备类型明细（共 <span id="deviceTypeCount">0</span> 类）</div>
+          <div class="table-wrap" style="max-height:300px;">
+            <table>
+              <thead><tr><th>设备类型</th><th>基础码数</th><th>检查记录数</th><th>最近检查时间</th><th>任务总数</th><th>任务完成数</th><th>任务完成率</th></tr></thead>
+              <tbody id="deviceTypeTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 计划任务到期分析 -->
   <div class="section">
     <div class="section-title">
