@@ -113,6 +113,32 @@ app.use((req, res, next) => {
   next();
 });
 
+// ========== 基础限流（零依赖，固定窗口按 IP） ==========
+// 防止恶意高频请求；阈值可调：RATE_LIMIT（次）/ RATE_WINDOW（秒），默认 120/60。
+const RATE_LIMIT = parseInt(process.env.RATE_LIMIT) || 120;
+const RATE_WINDOW = parseInt(process.env.RATE_WINDOW) || 60;
+const _rateBuckets = new Map(); // ip -> { count, resetAt }
+function rateLimiter(req, res, next) {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
+    .toString().split(',')[0].trim() || 'unknown';
+  const now = Date.now();
+  let b = _rateBuckets.get(ip);
+  if (!b || now > b.resetAt) {
+    b = { count: 0, resetAt: now + RATE_WINDOW * 1000 };
+    _rateBuckets.set(ip, b);
+  }
+  b.count++;
+  if (b.count > RATE_LIMIT) {
+    const retry = Math.ceil((b.resetAt - now) / 1000);
+    return res.status(429).json({
+      error: '请求过于频繁，请稍后再试。',
+      hint: `限流：${RATE_LIMIT} 次 / ${RATE_WINDOW} 秒，约 ${retry}s 后重置。`
+    });
+  }
+  next();
+}
+app.use('/api', rateLimiter);
+
 // ========== 基础访问控制（P0） ==========
 // 通过地址 ?token= 或请求头 x-api-token / Authorization: Bearer 携带访问令牌。
 // 默认令牌 cli-dash-2026，生产环境请通过环境变量 ACCESS_TOKEN 覆盖；
