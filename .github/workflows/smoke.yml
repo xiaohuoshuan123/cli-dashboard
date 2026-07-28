@@ -1,0 +1,30 @@
+name: Smoke Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Syntax + Auth smoke (no DB required)
+        # 默认只跑语法闸门 + 鉴权校验（不依赖数据库，CI 必定可跑）。
+        # 若仓库设置了 secret RUN_DB_SMOKE=true 且 RDS 已放行 GitHub Runner IP，
+        # 可开启数据库接口冒烟。
+        env:
+          RUN_DB_SMOKE: ${{ secrets.RUN_DB_SMOKE || 'false' }}
+        run: npm run smoke
