@@ -51,28 +51,91 @@ const pieLabelPlugin = {
 };
 Chart.register(pieLabelPlugin);
 
-// ========== 工具函数 ==========
-const ACCESS_TOKEN = new URLSearchParams(location.search).get('token') || '';
-function showAuthBanner() {
-  if (document.getElementById('authBanner')) return;
-  const b = document.createElement('div');
-  b.id = 'authBanner';
-  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#1e293b;color:#fff;padding:10px 16px;font-size:13px;text-align:center;';
-  b.innerHTML = '🔒 看板已启用访问令牌：请在地址后附加 <code>?token=访问令牌</code> 后重新打开。';
-  document.body.appendChild(b);
+// ========== 访问令牌 / 登录弹窗 ==========
+// 令牌保存在 sessionStorage（关闭标签页即失效），避免明文暴露在 URL 中。
+function getToken() { return sessionStorage.getItem('dash_token') || ''; }
+function setToken(t) { sessionStorage.setItem('dash_token', t); }
+function clearToken() { sessionStorage.removeItem('dash_token'); }
+
+async function validateToken(t) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 14000);
+  try {
+    const res = await fetch(`/api/auth/verify?token=${encodeURIComponent(t)}`, { signal: controller.signal });
+    return res.status === 200;
+  } catch (e) {
+    return false;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+function showLogin() {
+  document.body.classList.add('auth-locked');
+  const m = document.getElementById('loginModal');
+  if (m) m.style.display = 'flex';
+}
+function hideLogin() {
+  document.body.classList.remove('auth-locked');
+  const m = document.getElementById('loginModal');
+  if (m) m.style.display = 'none';
+}
+
+async function attemptLogin() {
+  const input = document.getElementById('tokenInput');
+  const err = document.getElementById('loginError');
+  const t = (input.value || '').trim();
+  if (!t) { err.textContent = '请输入访问令牌'; return; }
+  const ok = await validateToken(t);
+  if (ok) {
+    setToken(t);
+    err.textContent = '';
+    hideLogin();
+    if (typeof startDashboard === 'function') startDashboard();
+  } else {
+    err.textContent = '令牌错误，请重试（默认令牌见部署文档）';
+  }
+}
+
+function logout() {
+  clearToken();
+  if (typeof _refreshTimer !== 'undefined' && _refreshTimer) clearInterval(_refreshTimer);
+  showLogin();
+  const lb = document.getElementById('logoutBtn');
+  if (lb) lb.style.display = 'none';
+}
+
+// 页面初始化鉴权：URL 带 ?token= 时优先采用并写入会话；否则读会话令牌；都没有则弹登录框。
+async function initAuth() {
+  const urlTok = new URLSearchParams(location.search).get('token');
+  if (urlTok) {
+    setToken(urlTok.trim());
+    history.replaceState(null, '', location.pathname);
+  }
+  const tok = getToken();
+  if (tok) {
+    const ok = await validateToken(tok);
+    if (ok) { hideLogin(); if (typeof startDashboard === 'function') startDashboard(); return; }
+    clearToken();
+  }
+  showLogin();
 }
 
 async function fetchAPI(endpoint, timeout = 14000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
-        let url = `/api${endpoint}`;
-    if (ACCESS_TOKEN) {
+    let url = `/api${endpoint}`;
+    const tok = getToken();
+    if (tok) {
       const sep = url.includes('?') ? '&' : '?';
-      url += `${sep}token=${encodeURIComponent(ACCESS_TOKEN)}`;
+      url += `${sep}token=${encodeURIComponent(tok)}`;
     }
     const res = await fetch(url, { signal: controller.signal });
-    if (res.status === 401) { showAuthBanner(); throw new Error('未授权：缺少或错误的访问令牌'); }
+    if (res.status === 401) {
+      showLogin();
+      throw new Error('未授权：令牌缺失或已失效，请重新登录');
+    }
     if (!res.ok) {
       let msg = `API ${endpoint} 返回 ${res.status}`;
       try {
