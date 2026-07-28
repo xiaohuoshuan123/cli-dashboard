@@ -58,8 +58,15 @@ async function loadHealth() {
   }
 }
 
-// 首次加载
-loadAllData();
+// ========== 登录后启动看板 ==========
+let _refreshTimer = null;
+function startDashboard() {
+  loadAllData();
+  if (_refreshTimer) clearInterval(_refreshTimer);
+  _refreshTimer = setInterval(loadAllData, 5 * 60 * 1000);
+  const lb = document.getElementById('logoutBtn');
+  if (lb) lb.style.display = '';
+}
 
-// 每5分钟自动刷新
-setInterval(loadAllData, 5 * 60 * 1000);
+// 首次加载（在 core.js 的 initAuth 校验通过后调用 startDashboard；此处仅触发鉴权流程）
+initAuth();
