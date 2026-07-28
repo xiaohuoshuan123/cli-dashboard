@@ -292,10 +292,6 @@ function setQuickDate(kind) {
     s = ymd(ly, lmm, 1); e = ymd(ly, lmm, lastDay);
   } else if (kind === 'year') {          // 本年：1 月 1 日 ~ 现在
     s = ymd(Y, 0, 1); e = ymd(Y, M, D);
-  } else if (typeof kind === 'number' && kind > 0) {  // 近 N 天（滚动）
-    const sd = new Date(bj.getTime() - kind * 86400000);
-    s = ymd(sd.getUTCFullYear(), sd.getUTCMonth(), sd.getUTCDate());
-    e = ymd(Y, M, D);
   } else {                               // 全部
     s = '2020-01-01'; e = ymd(Y, M, D);
   }
