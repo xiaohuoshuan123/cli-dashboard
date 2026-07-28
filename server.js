@@ -397,48 +397,43 @@ app.get('/api/emergency-lights/results', async (req, res) => {
   }
 });
 
-// 消防应急灯多维度分析（数据源：table_d16 点检记录）
-// 维度：按设备(码名称) / 按检查人(记录人) / 按检查结果(正常·异常) + 异常记录明细
+// 消防应急灯多维度分析（数据源：template_codeinfo_d15 子码主数据，固定 83 个设备）
+// 维度：按检查人(点检人) / 按责任部门 / 按生产厂商；附设备台账明细。
+// 注意：d15 为设备主数据，不含点检时间字段，故时间切片不适用，固定为全量台账；
+//       不再从 table_d16 点检记录做多维分析，也不展示点检异常明细。
 app.get('/api/emergency-lights/analysis', async (req, res) => {
   try {
+    const norm = (col) => `TRIM(REPLACE(${col}, UNHEX('E38080'), ' '))`;
     const params = [];
-    let where = ' WHERE 1=1';
-    if (req.query.startDate) { where += ' AND 记录时间 >= ?'; params.push(req.query.startDate); }
-    if (req.query.endDate) { where += ' AND 记录时间 <= ?'; params.push(endVal(req.query.endDate)); }
-    const base = `FROM table_d16 ${where}`;
-    // 关联应急灯主数据表 template_codeinfo_d15（含 责任部门 / 生产厂家），按 code_id 关联
-    const baseJoin = `FROM table_d16 t JOIN template_codeinfo_d15 m ON t.code_id = m.code_id ${where}`;
 
-    const totalRows = await query(`SELECT COUNT(*) AS c ${base}`, params);
+    const totalRows = await query(`SELECT COUNT(*) AS c FROM template_codeinfo_d15`);
     const total = totalRows[0] ? totalRows[0].c : 0;
 
-    const byDevice = await query(
-      `SELECT \`码名称\` AS device, COUNT(*) AS cnt,
-              SUM(CASE WHEN \`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal,
-              MAX(\`记录时间\`) AS last_time
-       ${base} GROUP BY \`码名称\` ORDER BY cnt DESC`, params);
-
     const byInspector = await query(
-      `SELECT \`记录人\` AS inspector, COUNT(*) AS cnt,
-              SUM(CASE WHEN \`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal
-       ${base} GROUP BY \`记录人\` ORDER BY cnt DESC`, params);
+      `SELECT ${norm('`点检人_3170560`')} AS inspector, COUNT(*) AS cnt
+       FROM template_codeinfo_d15 GROUP BY ${norm('`点检人_3170560`')} ORDER BY cnt DESC`, params);
 
     const byDepartment = await query(
-      `SELECT TRIM(REPLACE(m.\`责任部门_81036793872385\`, UNHEX('E38080'), ' ')) AS dept, COUNT(*) AS cnt,
-              SUM(CASE WHEN t.\`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal
-       ${baseJoin} GROUP BY TRIM(REPLACE(m.\`责任部门_81036793872385\`, UNHEX('E38080'), ' ')) ORDER BY cnt DESC`, params);
+      `SELECT ${norm('`责任部门_81036793872385`')} AS dept, COUNT(*) AS cnt
+       FROM template_codeinfo_d15 GROUP BY ${norm('`责任部门_81036793872385`')} ORDER BY cnt DESC`, params);
 
     const byVendor = await query(
-      `SELECT TRIM(REPLACE(m.\`生产厂家_3170558\`, UNHEX('E38080'), ' ')) AS vendor, COUNT(*) AS cnt,
-              SUM(CASE WHEN t.\`检查结果_3170565\` != '正常' THEN 1 ELSE 0 END) AS abnormal
-       ${baseJoin} GROUP BY TRIM(REPLACE(m.\`生产厂家_3170558\`, UNHEX('E38080'), ' ')) ORDER BY cnt DESC`, params);
+      `SELECT ${norm('`生产厂家_3170558`')} AS vendor, COUNT(*) AS cnt
+       FROM template_codeinfo_d15 GROUP BY ${norm('`生产厂家_3170558`')} ORDER BY cnt DESC`, params);
 
-    const abnormal = await query(
-      `SELECT \`码名称\` AS device, \`记录人\` AS inspector, \`记录时间\` AS time,
-              \`情况说明/存在问题_3170567\` AS note, \`状态\` AS status
-       ${base} AND \`检查结果_3170565\` != '正常' ORDER BY \`记录时间\` DESC`, params);
+    const devices = await query(
+      `SELECT
+        \`编号_3170556\` AS code,
+        \`安装位置_3170557\` AS location,
+        ${norm('`责任部门_81036793872385`')} AS dept,
+        ${norm('`生产厂家_3170558`')} AS vendor,
+        ${norm('`点检人_3170560`')} AS inspector,
+        \`状态\` AS status,
+        \`规格型号_3170645\` AS model,
+        \`出厂日期_3170561\` AS prodDate
+       FROM template_codeinfo_d15 ORDER BY \`编号_3170556\``, params);
 
-    res.json({ total, byDevice, byInspector, byDepartment, byVendor, abnormal });
+    res.json({ total, byInspector, byDepartment, byVendor, devices });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
