@@ -268,6 +268,24 @@ function toLocalDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 
+// ===== 日期选择器：flatpickr（统一中文「年/月/日」显示，底层值仍为 ISO YYYY-MM-DD）=====
+// 原生 <input type="date"> 的显示格式由浏览器/系统区域决定，前端无法强制为中文，
+// 故改用 flatpickr 的 altInput：可见框显示 altFormat「Y年m月d日」，隐藏原 input 存 ISO。
+// 所有现状读取 getElementById('startDate').value 的代码无需改动（仍拿到 ISO）。
+let fpStart = null, fpEnd = null;
+if (window.flatpickr) {
+  try {
+    flatpickr.localize(flatpickr.l10ns.zh);
+    fpStart = flatpickr('#startDate', { dateFormat: 'Y-m-d', altInput: true, altFormat: 'Y年m月d日', allowInput: true });
+    fpEnd = flatpickr('#endDate', { dateFormat: 'Y-m-d', altInput: true, altFormat: 'Y年m月d日', allowInput: true });
+    if (fpStart && fpStart.altInput) fpStart.altInput.placeholder = '年 / 月 / 日';
+    if (fpEnd && fpEnd.altInput) fpEnd.altInput.placeholder = '年 / 月 / 日';
+  } catch (e) {
+    console.warn('flatpickr 初始化失败，回退为原生输入框：', e);
+    fpStart = fpEnd = null;
+  }
+}
+
 // 日期选择器（快捷范围）。所有边界按【北京时间 Asia/Shanghai】计算。
 // 关键：用"绝对 instant + 8h"后的 getUTC* 分量作为北京日历分量——
 // 因为任意时刻的北京日历 = 其 UTC 分量 + 8h，故 instant+8h 的 UTC 分量即北京日历。
@@ -298,8 +316,13 @@ function setQuickDate(kind) {
   } else {                               // 全部
     s = '2020-01-01'; e = ymd(Y, M, D);
   }
-  document.getElementById('startDate').value = s;
-  document.getElementById('endDate').value = e;
+  if (fpStart && fpEnd) {
+    fpStart.setDate(s, true);
+    fpEnd.setDate(e, true);
+  } else {
+    document.getElementById('startDate').value = s;
+    document.getElementById('endDate').value = e;
+  }
   loadAllData();
 }
 
