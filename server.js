@@ -120,6 +120,13 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// 令牌校验（前端登录弹窗用）
+// 该路由在 /api 下，requireAuth 已先校验令牌：到达此路由即代表令牌有效，返回 200；
+// 令牌错误时 requireAuth 直接返回 401，不会进入本处理。无需连接数据库。
+app.get('/api/auth/verify', (req, res) => {
+  res.json({ ok: true, valid: true });
+});
+
 // 缓存统计与手动清空（均受上面鉴权保护）
 app.get('/api/cache/stats', (req, res) => {
   const now = Date.now();
