@@ -175,7 +175,7 @@ async function loadFireTrend() {
       labels: data.map(d => d.month.replace('20', '')),
       datasets: [{ label: '检查数', data: data.map(d => d.count), backgroundColor: '#3b82f6' }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 16 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
 }
 
@@ -195,7 +195,7 @@ async function loadLightTrend() {
       labels: data.map(d => d.month.replace('20', '')),
       datasets: [{ label: '检查数', data: data.map(d => d.count), backgroundColor: '#10b981' }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 16 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
 }
 
@@ -215,7 +215,7 @@ async function loadAidTrend() {
       labels: data.map(d => d.month.replace('20', '')),
       datasets: [{ label: '点检数', data: data.map(d => d.count), backgroundColor: '#f59e0b' }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 16 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
 }
 
@@ -235,7 +235,7 @@ async function loadEyeTrend() {
       labels: data.map(d => d.month.replace('20', '')),
       datasets: [{ label: '点检数', data: data.map(d => d.count), backgroundColor: '#8b5cf6' }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 16 } }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
 }
 
@@ -631,4 +631,103 @@ async function loadTaskDeadline() {
       <td>${formatDateTime(t.截止时间)}</td>
     </tr>
   `).join('') : '<tr><td colspan="3" style="text-align:center;color:#94a3b8;">暂无超期记录</td></tr>';
+}
+
+// ========== 消防应急灯多维度分析 ==========
+async function loadLightAnalysis() {
+  const params = new URLSearchParams();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+
+  lightAnalysisData = await fetchAPI(`/emergency-lights/analysis?${params}`);
+  document.getElementById('lightAnalysisTotal').textContent = formatNumber(lightAnalysisData.total);
+  renderLightAnalysis();
+  renderLightDetail();
+  renderLightAbnormal();
+}
+
+function switchLightTab(tab, el) {
+  currentLightTab = tab;
+  document.querySelectorAll('#lightAnalysis .tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderLightAnalysis();
+}
+
+function renderLightAnalysis() {
+  const tab = currentLightTab;
+  const titleMap = { device: '按设备分布', inspector: '按检查人分布', result: '按检查结果分布' };
+  document.getElementById('lightAnalysisTitle').textContent =
+    `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 条记录）`;
+
+  let labels = [], data = [], colors = null;
+  if (tab === 'device') {
+    // 设备较多，图表仅展示 Top20，完整明细见右侧表格
+    const top = lightAnalysisData.byDevice.slice(0, 20);
+    labels = top.map(d => d.device);
+    data = top.map(d => d.cnt);
+  } else if (tab === 'inspector') {
+    labels = lightAnalysisData.byInspector.map(d => d.inspector || '未知');
+    data = lightAnalysisData.byInspector.map(d => d.cnt);
+  } else {
+    labels = lightAnalysisData.byResult.map(d => d.result || '未知');
+    data = lightAnalysisData.byResult.map(d => d.cnt);
+    colors = lightAnalysisData.byResult.map(d => d.result === '正常' ? '#10b981' : '#ef4444');
+  }
+
+  destroyChart('lightAnalysis');
+  charts.lightAnalysis = new Chart(document.getElementById('lightAnalysisChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '数量',
+        data,
+        backgroundColor: colors || '#10b981'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 16 } },
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true },
+        x: { ticks: { font: { size: 10 }, maxRotation: 60, minRotation: 0 } }
+      }
+    }
+  });
+}
+
+function renderLightDetail() {
+  const kw = (document.getElementById('lightSearch').value || '').trim().toLowerCase();
+  const rf = document.getElementById('lightResultFilter').value;
+  const rows = (lightAnalysisData.byDevice || []).filter(d => {
+    if (rf === 'abnormal' && (!d.abnormal || d.abnormal == 0)) return false;
+    if (kw && !(d.device || '').toLowerCase().includes(kw)) return false;
+    return true;
+  });
+  document.getElementById('lightDetailCount').textContent = rows.length;
+  document.getElementById('lightDetailTable').innerHTML = rows.map(d => `
+    <tr>
+      <td style="font-weight:600;">${d.device}</td>
+      <td><strong>${formatNumber(d.cnt)}</strong></td>
+      <td>${d.abnormal > 0
+        ? `<span class="badge badge-red">异常${d.abnormal}</span>`
+        : '<span class="badge badge-green">正常</span>'}</td>
+      <td>${d.last_time ? formatDateTime(d.last_time) : '-'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" style="text-align:center;color:#94a3b8;">无匹配设备</td></tr>';
+}
+
+function renderLightAbnormal() {
+  const ab = lightAnalysisData.abnormal || [];
+  document.getElementById('lightAbnormalTable').innerHTML = ab.length ? ab.map(a => `
+    <tr>
+      <td style="font-weight:600;color:#ef4444;">${a.device || '-'}</td>
+      <td>${a.inspector || '-'}</td>
+      <td>${a.time ? formatDateTime(a.time) : '-'}</td>
+      <td>${a.note ? a.note : '<span style="color:#94a3b8;">（无说明）</span>'}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4" style="text-align:center;color:#16a34a;">✅ 暂无异常记录</td></tr>';
 }
