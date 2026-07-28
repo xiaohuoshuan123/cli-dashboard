@@ -527,11 +527,11 @@ app.get('/api/fire-cylinder/status', async (req, res) => {
   }
 });
 
-// 人员排行
+// 人员排行（枢纽分析：每人 × 每张记录单 的提交次数，返回全部人员，前端只展示 TOP20、导出为全部）
 app.get('/api/members/ranking', async (req, res) => {
   try {
     let sql = `
-      SELECT 记录人 as name, COUNT(*) as count
+      SELECT 记录人 as name, COALESCE(NULLIF(记录单名称,''),'未知表单') as form, COUNT(*) as cnt
       FROM base_table_data
       WHERE 记录人 IS NOT NULL AND 记录人 != ''
     `;
@@ -546,9 +546,22 @@ app.get('/api/members/ranking', async (req, res) => {
       params.push(endVal(req.query.endDate));
     }
     
-    sql += ` GROUP BY 记录人 ORDER BY count DESC LIMIT 20`;
+    sql += ` GROUP BY 记录人, form`;
     const rows = await query(sql, params);
-    res.json(rows);
+
+    // 组装枢纽结构：forms 按总提交数降序作为列，members 按个人总数降序作为行
+    const formTotals = {};
+    const memberMap = {};
+    for (const r of rows) {
+      const cnt = Number(r.cnt);
+      formTotals[r.form] = (formTotals[r.form] || 0) + cnt;
+      if (!memberMap[r.name]) memberMap[r.name] = { name: r.name, total: 0, byForm: {} };
+      memberMap[r.name].byForm[r.form] = (memberMap[r.name].byForm[r.form] || 0) + cnt;
+      memberMap[r.name].total += cnt;
+    }
+    const forms = Object.keys(formTotals).sort((a, b) => formTotals[b] - formTotals[a]);
+    const members = Object.values(memberMap).sort((a, b) => b.total - a.total);
+    res.json({ forms, formTotals, members, grandTotal: members.reduce((s, m) => s + m.total, 0) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
