@@ -268,15 +268,18 @@ function toLocalDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 
-// 日期选择器（快捷范围）。所有边界按【北京时间 Asia/Shanghai】计算，
-// 用 UTC 偏移取北京时间分量，避免依赖浏览器所在时区。
+// 日期选择器（快捷范围）。所有边界按【北京时间 Asia/Shanghai】计算。
+// 关键：用"绝对 instant + 8h"后的 getUTC* 分量作为北京日历分量——
+// 因为任意时刻的北京日历 = 其 UTC 分量 + 8h，故 instant+8h 的 UTC 分量即北京日历。
+// 绝不能用 getTimezoneOffset() 补偿：浏览器在 UTC+8 时 offset=-480，会把 +8h 抵消，
+// 导致 getUTCDate() 取到 UTC 分量（比北京晚一天，如北京 07-29 06:15 → UTC 07-28 22:15 → 返回 28）。
 function pad2(n) { return String(n).padStart(2, '0'); }
 function ymd(y, m, d) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
 
 function setQuickDate(kind) {
   const n = new Date();
-  // 北京时间对应的 instant：本地 now 的时区偏移补回 UTC，再 +8h
-  const bj = new Date(n.getTime() + n.getTimezoneOffset() * 60000 + 8 * 3600000);
+  // 北京日历分量（与浏览器所在时区无关）
+  const bj = new Date(n.getTime() + 8 * 3600000);
   const Y = bj.getUTCFullYear(), M = bj.getUTCMonth(), D = bj.getUTCDate(), dow = bj.getUTCDay();
   let s, e;
   if (kind === 'week') {                 // 本周：周一 00:00 ~ 现在
