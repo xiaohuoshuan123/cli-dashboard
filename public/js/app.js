@@ -45,11 +45,11 @@ async function loadHealth() {
       el.innerHTML = '🟢 数据库已连接';
       el.style.color = '#16a34a';
     } else {
-      el.innerHTML = '🔴 数据库异常：' + (h.message || '未知');
+      el.innerHTML = '🔴 数据库异常：' + escapeHtml(h.message || '未知');
       el.style.color = '#ef4444';
     }
   } catch (err) {
-    el.innerHTML = '🔴 无法连接后端：' + err.message;
+    el.innerHTML = '🔴 无法连接后端：' + escapeHtml(err.message);
     el.style.color = '#ef4444';
   }
 }
