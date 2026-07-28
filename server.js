@@ -603,14 +603,17 @@ app.get('/api/fire-extinguisher/ranking', async (req, res) => {
 app.get('/api/tasks/details', async (req, res) => {
   try {
     let sql = `
-      SELECT 
+      SELECT
         计划名称 as name,
+        GROUP_CONCAT(DISTINCT b.模板名称) as templates,
+        GROUP_CONCAT(DISTINCT b.目录) as categories,
         COUNT(*) as total,
-        SUM(CASE WHEN 状态 = '完成' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN 状态 = '超期未完成' THEN 1 ELSE 0 END) as overdue_incomplete,
-        SUM(CASE WHEN 状态 = '未完成' THEN 1 ELSE 0 END) as incomplete,
-        SUM(CASE WHEN 状态 = '超期完成' THEN 1 ELSE 0 END) as overdue_complete
-      FROM code_task_log
+        SUM(CASE WHEN t.状态 = '完成' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN t.状态 = '超期未完成' THEN 1 ELSE 0 END) as overdue_incomplete,
+        SUM(CASE WHEN t.状态 = '未完成' THEN 1 ELSE 0 END) as incomplete,
+        SUM(CASE WHEN t.状态 = '超期完成' THEN 1 ELSE 0 END) as overdue_complete
+      FROM code_task_log t
+      LEFT JOIN base_codeinfo b ON t.code_id = b.code_id
       WHERE 1=1
     `;
     const params = [];
@@ -903,6 +906,23 @@ app.get('/api/fire-extinguisher/analysis', async (req, res) => {
     });
     const rows = await query(sql, []);
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 原始设备主数据导出（不做任何加工，直接来自草料批量码信息表）
+app.get('/api/devices/raw', async (req, res) => {
+  try {
+    const map = { extinguisher: 'template_codeinfo_d10', light: 'template_codeinfo_d15' };
+    const table = map[req.query.type];
+    if (!table) return res.status(400).json({ error: '未知设备类型，type 须为 extinguisher 或 light' });
+    const colRows = await query(
+      `SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ORDINAL_POSITION`,
+      [dbConfig.database, table], 0);
+    const columns = colRows.map(r => r.COLUMN_NAME);
+    const rows = await query(`SELECT * FROM \`${table}\``, [], 0);
+    res.json({ table, columns, rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
