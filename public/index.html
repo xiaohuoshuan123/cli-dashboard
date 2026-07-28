@@ -746,26 +746,14 @@ tr:hover { background: #f8fafc; }
       <button class="toggle-btn" onclick="toggleSection('memberRank')">收起</button>
     </div>
     <div class="section-content" id="memberRank">
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title">总记录提交 TOP 20</div>
-          <div class="tb-bar"><button class="btn-export" onclick="exportTable('memberRankTable','总记录提交排行TOP20')">📥 导出Excel</button></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
-              <tbody id="memberRankTable"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">灭火器检查提交 TOP 15</div>
-          <div class="tb-bar"><button class="btn-export" onclick="exportTable('fireRankTable','灭火器检查提交排行TOP15')">📥 导出Excel</button></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>#</th><th>姓名</th><th>提交数</th><th>占比</th></tr></thead>
-              <tbody id="fireRankTable"></tbody>
-            </table>
-          </div>
+      <div class="card">
+        <div class="card-title">总记录提交 TOP 20（按记录单枢纽分析）<span id="memberRankCount" style="font-weight:normal;font-size:12px;color:var(--text2);margin-left:8px;"></span></div>
+        <div class="tb-bar"><button class="btn-export" onclick="exportMemberRanking()">📥 导出Excel（全部人员）</button></div>
+        <div class="table-wrap">
+          <table>
+            <thead id="memberRankHead"></thead>
+            <tbody id="memberRankTable"></tbody>
+          </table>
         </div>
       </div>
     </div>
