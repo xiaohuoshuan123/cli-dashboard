@@ -249,53 +249,62 @@ async function loadEyeTrend() {
   });
 }
 
-// ========== 人员排行 ==========
+// ========== 人员排行（枢纽分析：每人 × 每张记录单）==========
+// 展示 TOP 20，导出 Excel 时包含全部人员
+let memberRankingData = null;
+
+function buildMemberRankRows(members, forms) {
+  return members.map((m, i) => {
+    const cells = forms.map(f => {
+      const c = m.byForm[f] || 0;
+      return `<td style="text-align:center;">${c ? formatNumber(c) : '-'}</td>`;
+    }).join('');
+    return `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${m.name}</td>
+      <td style="text-align:center;"><strong>${formatNumber(m.total)}</strong></td>
+      ${cells}
+    </tr>`;
+  }).join('');
+}
+
 async function loadMemberRanking() {
   const params = new URLSearchParams();
   const startDate = document.getElementById('startDate').value;
   const endDate = document.getElementById('endDate').value;
   if (startDate) params.set('startDate', startDate);
   if (endDate) params.set('endDate', endDate);
-  
-  const members = await fetchAPI(`/members/ranking?${params}`);
-  const total = members.reduce((s, m) => s + m.count, 0);
-  document.getElementById('memberRankTable').innerHTML = members.map((m, i) => `
+
+  const data = await fetchAPI(`/members/ranking?${params}`);
+  memberRankingData = data;
+  const forms = data.forms || [];
+  const members = data.members || [];
+
+  // 动态表头：# / 姓名 / 总提交数 / 各记录单一列（含该表总数）
+  document.getElementById('memberRankHead').innerHTML = `
     <tr>
-      <td>${i+1}</td>
-      <td>${m.name}</td>
-      <td><strong>${formatNumber(m.count)}</strong></td>
-      <td>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div class="progress-bar" style="width:80px;"><div class="fill" style="width:${(m.count/members[0].count*100).toFixed(0)}%"></div></div>
-          <span style="font-size:11px;color:var(--text2);">${(m.count/total*100).toFixed(1)}%</span>
-        </div>
-      </td>
-    </tr>
-  `).join('');
+      <th>#</th><th>姓名</th><th>总提交数</th>
+      ${forms.map(f => `<th style="text-align:center;">${f}<br><span style="font-weight:normal;font-size:10px;color:var(--text2);">(共${formatNumber(data.formTotals[f] || 0)})</span></th>`).join('')}
+    </tr>`;
+
+  // 只展示 TOP 20
+  document.getElementById('memberRankTable').innerHTML = buildMemberRankRows(members.slice(0, 20), forms);
+  const countEl = document.getElementById('memberRankCount');
+  if (countEl) countEl.textContent = `展示 TOP ${Math.min(20, members.length)} / 共 ${members.length} 人，合计 ${formatNumber(data.grandTotal || 0)} 条`;
 }
 
-async function loadFireRanking() {
-  const params = new URLSearchParams();
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  if (startDate) params.set('startDate', startDate);
-  if (endDate) params.set('endDate', endDate);
-  
-  const members = await fetchAPI(`/fire-extinguisher/ranking?${params}`);
-  const total = members.reduce((s, m) => s + m.count, 0);
-  document.getElementById('fireRankTable').innerHTML = members.map((m, i) => `
-    <tr>
-      <td>${i+1}</td>
-      <td>${m.name}</td>
-      <td><strong>${formatNumber(m.count)}</strong></td>
-      <td>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div class="progress-bar" style="width:80px;"><div class="fill" style="width:${(m.count/members[0].count*100).toFixed(0)}%"></div></div>
-          <span style="font-size:11px;color:var(--text2);">${(m.count/total*100).toFixed(1)}%</span>
-        </div>
-      </td>
-    </tr>
-  `).join('');
+// 导出全部人员（不止 TOP20）
+function exportMemberRanking() {
+  if (!memberRankingData) { alert('数据尚未加载完成'); return; }
+  const forms = memberRankingData.forms || [];
+  const members = memberRankingData.members || [];
+  const head = `<tr><th>#</th><th>姓名</th><th>总提交数</th>${forms.map(f => `<th>${f}</th>`).join('')}</tr>`;
+  const rows = members.map((m, i) =>
+    `<tr><td>${i + 1}</td><td>${m.name}</td><td>${m.total}</td>${forms.map(f => `<td>${m.byForm[f] || 0}</td>`).join('')}</tr>`
+  ).join('');
+  const totalRow = `<tr><td></td><td>合计</td><td>${memberRankingData.grandTotal || 0}</td>${forms.map(f => `<td>${memberRankingData.formTotals[f] || 0}</td>`).join('')}</tr>`;
+  downloadExcelHtml(`<table><thead>${head}</thead><tbody>${rows}${totalRow}</tbody></table>`, '人员参与度排行-全部人员按表单枢纽分析');
 }
 
 // ========== 计划执行明细 ==========
