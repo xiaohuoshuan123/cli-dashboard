@@ -318,9 +318,13 @@ async function loadTaskDetails() {
   const tasks = await fetchAPI(`/tasks/details?${params}`);
   document.getElementById('taskDetailTable').innerHTML = tasks.map(t => {
     const rate = t.total > 0 ? ((t.completed / t.total) * 100).toFixed(1) : 0;
+    const templates = (t.templates && t.templates !== 'null') ? t.templates : '-';
+    const categories = (t.categories && t.categories !== 'null') ? t.categories : '-';
     return `
       <tr>
         <td>${t.name}</td>
+        <td>${templates}</td>
+        <td>${categories}</td>
         <td>${formatNumber(t.total)}</td>
         <td><span class="badge badge-green">${formatNumber(t.completed)}</span></td>
         <td><span class="badge badge-yellow">${formatNumber(t.overdue_complete)}</span></td>
@@ -554,7 +558,7 @@ function renderFireDetail() {
 function renderFireAnalysis() {
   const tab = currentFireTab;
   const titleMap = { spec: '按规格分布', inspector: '按负责人(点检人)分布', dept: '按责任部门分布', manufacturer: '按生产厂家分布' };
-  document.getElementById('fireAnalysisTitle').textContent = `${titleMap[tab]}（共 ${fireAnalysisData.length} 个）`;
+  document.getElementById('fireAnalysisTitle').textContent = `${titleMap[tab]}（共 ${fireAnalysisData.length} 个 · 来源 template_codeinfo_d10）`;
   
   const count = {};
   fireAnalysisData.forEach(f => {
@@ -615,7 +619,7 @@ function renderLightAnalysis() {
   const tab = currentLightTab;
   const titleMap = { inspector: '按检查人分布', department: '按责任部门分布', vendor: '按生产厂商分布' };
   document.getElementById('lightAnalysisTitle').textContent =
-    `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 个设备）`;
+    `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 个设备 · 来源 template_codeinfo_d15）`;
 
   let labels = [], data = [], colors = null;
   if (tab === 'inspector') {
