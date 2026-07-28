@@ -53,14 +53,14 @@ async function loadAlerts() {
   const pressure = await fetchAPI('/pressure-gauge/status');
   const pressureBad = pressure.find(p => p.status && p.status.includes('异常'));
   if (pressureBad) {
-    alerts.push(`<div class="alert alert-danger">⚠️ 压力表：${pressureBad.status} ${pressureBad.count} 个，需立即处理</div>`);
+    alerts.push(`<div class="alert alert-danger">⚠️ 压力表：${escapeHtml(pressureBad.status)} ${pressureBad.count} 个，需立即处理</div>`);
   }
   
   // 气瓶异常
   const gas = await fetchAPI('/fire-cylinder/status');
   const gasBad = gas.find(g => g.status && (g.status.includes('压力不足') || g.status.includes('库存未检')));
   if (gasBad) {
-    alerts.push(`<div class="alert alert-warn">⚠️ 消防气瓶：${gasBad.status} ${gasBad.count} 个</div>`);
+    alerts.push(`<div class="alert alert-warn">⚠️ 消防气瓶：${escapeHtml(gasBad.status)} ${gasBad.count} 个</div>`);
   }
   
   // 灭火器异常
@@ -282,7 +282,7 @@ function buildMemberRankRows(members, forms) {
     return `
     <tr>
       <td>${i + 1}</td>
-      <td style="min-width:96px;white-space:nowrap;font-weight:500;">${m.name}</td>
+      <td style="min-width:96px;white-space:nowrap;font-weight:500;">${escapeHtml(m.name)}</td>
       <td style="text-align:center;"><strong>${formatNumber(m.total)}</strong></td>
       ${cells}
     </tr>`;
@@ -305,7 +305,7 @@ async function loadMemberRanking() {
   document.getElementById('memberRankHead').innerHTML = `
     <tr>
       <th>#</th><th style="min-width:96px;white-space:nowrap;">姓名</th><th>总提交数</th>
-      ${forms.map(f => `<th style="text-align:center;">${f}<br><span style="font-weight:normal;font-size:10px;color:var(--text2);">(共${formatNumber(data.formTotals[f] || 0)})</span></th>`).join('')}
+      ${forms.map(f => `<th style="text-align:center;">${escapeHtml(f)}<br><span style="font-weight:normal;font-size:10px;color:var(--text2);">(共${formatNumber(data.formTotals[f] || 0)})</span></th>`).join('')}
     </tr>`;
 
   // 只展示 TOP 20
@@ -319,9 +319,9 @@ function exportMemberRanking() {
   if (!memberRankingData) { alert('数据尚未加载完成'); return; }
   const forms = memberRankingData.forms || [];
   const members = memberRankingData.members || [];
-  const head = `<tr><th>#</th><th>姓名</th><th>总提交数</th>${forms.map(f => `<th>${f}</th>`).join('')}</tr>`;
+  const head = `<tr><th>#</th><th>姓名</th><th>总提交数</th>${forms.map(f => `<th>${escapeHtml(f)}</th>`).join('')}</tr>`;
   const rows = members.map((m, i) =>
-    `<tr><td>${i + 1}</td><td>${m.name}</td><td>${m.total}</td>${forms.map(f => `<td>${m.byForm[f] || 0}</td>`).join('')}</tr>`
+    `<tr><td>${i + 1}</td><td>${escapeHtml(m.name)}</td><td>${m.total}</td>${forms.map(f => `<td>${m.byForm[f] || 0}</td>`).join('')}</tr>`
   ).join('');
   const totalRow = `<tr><td></td><td>合计</td><td>${memberRankingData.grandTotal || 0}</td>${forms.map(f => `<td>${memberRankingData.formTotals[f] || 0}</td>`).join('')}</tr>`;
   downloadExcelHtml(`<table><thead>${head}</thead><tbody>${rows}${totalRow}</tbody></table>`, '人员参与度排行-全部人员按表单枢纽分析');
@@ -342,9 +342,9 @@ async function loadTaskDetails() {
     const categories = (t.categories && t.categories !== 'null') ? t.categories : '-';
     return `
       <tr>
-        <td>${t.name}</td>
-        <td>${templates}</td>
-        <td>${categories}</td>
+        <td>${escapeHtml(t.name)}</td>
+        <td>${escapeHtml(templates)}</td>
+        <td>${escapeHtml(categories)}</td>
         <td>${formatNumber(t.total)}</td>
         <td><span class="badge badge-green">${formatNumber(t.completed)}</span></td>
         <td><span class="badge badge-yellow">${formatNumber(t.overdue_complete)}</span></td>
@@ -371,11 +371,11 @@ async function loadLatestRecords() {
   const records = await fetchAPI(`/records/latest?limit=15&${params}`);
   document.getElementById('latestRecordsTable').innerHTML = records.map(r => `
     <tr>
-      <td>${r.record_id}</td>
-      <td>${r.记录单名称}</td>
-      <td>${r.记录人}</td>
+      <td>${escapeHtml(r.record_id)}</td>
+      <td>${escapeHtml(r.记录单名称)}</td>
+      <td>${escapeHtml(r.记录人)}</td>
       <td>${formatDateTime(r.记录时间)}</td>
-      <td>${r.码名称 || '-'}</td>
+      <td>${escapeHtml(r.码名称 || '-')}</td>
     </tr>
   `).join('');
 }
@@ -402,7 +402,7 @@ function renderFirstAidExpiry() {
     const chips = row.drugs.map(d => {
       const cls = d.status === 'expired' ? 'med-chip med-red' : d.status === 'expiring' ? 'med-chip med-yellow' : d.status === 'valid' ? 'med-chip med-green' : 'med-chip med-gray';
       const txt = d.status === 'expired' ? `过期${Math.abs(d.remainingDays)}天` : d.remainingDays !== null ? `剩${d.remainingDays}天` : '无日期';
-      return `<span class="${cls}" title="${d.raw}">${d.name}<br><small>${d.expiry||'-'} · ${txt}</small></span>`;
+      return `<span class="${cls}" title="${escapeHtml(d.raw)}">${escapeHtml(d.name)}<br><small>${escapeHtml(d.expiry || '-')} · ${txt}</small></span>`;
     }).join('');
     const badge = row.hasExpired
       ? `<span class="badge badge-red">过期${row.expiredCount}</span><span class="badge badge-yellow">临期${row.expiringCount}</span>`
@@ -410,9 +410,9 @@ function renderFirstAidExpiry() {
         ? `<span class="badge badge-yellow">临期${row.expiringCount}</span>`
         : `<span class="badge badge-green">全部有效</span>`;
     return `<tr>
-      <td style="font-weight:600;">${row.boxName || '未知'}</td>
-      <td>${row.location || '-'}</td>
-      <td>${row.recorder || '-'}</td>
+      <td style="font-weight:600;">${escapeHtml(row.boxName || '未知')}</td>
+      <td>${escapeHtml(row.location || '-')}</td>
+      <td>${escapeHtml(row.recorder || '-')}</td>
       <td>${badge}</td>
       <td class="med-cell"><div class="med-wrap">${chips}</div></td>
     </tr>`;
@@ -460,12 +460,12 @@ async function loadFireMaintenance() {
     const cls = diff < 0 ? 'expired' : diff <= 30 ? 'expiring-soon' : 'valid';
     return `
       <tr>
-        <td>${m.code}</td>
-        <td>${m.name}</td>
-        <td>${m.location}</td>
-        <td>${m.inspector}</td>
-        <td>${m.dept}</td>
-        <td>${m.next_date}</td>
+        <td>${escapeHtml(m.code)}</td>
+        <td>${escapeHtml(m.name)}</td>
+        <td>${escapeHtml(m.location)}</td>
+        <td>${escapeHtml(m.inspector)}</td>
+        <td>${escapeHtml(m.dept)}</td>
+        <td>${escapeHtml(m.next_date)}</td>
         <td class="${cls}">${diff < 0 ? '已过期' + Math.abs(diff) + '天' : diff + '天'}</td>
       </tr>
     `;
@@ -507,13 +507,13 @@ async function loadFireScrap() {
     const cls = diff < 0 ? 'expired' : diff <= 180 ? 'expiring-soon' : 'valid';
     return `
       <tr>
-        <td>${m.code}</td>
-        <td>${m.name}</td>
-        <td>${m.location}</td>
-        <td>${m.inspector}</td>
-        <td>${m.dept}</td>
-        <td>${m.manufacturer || '-'}</td>
-        <td>${m.scrap_date}</td>
+        <td>${escapeHtml(m.code)}</td>
+        <td>${escapeHtml(m.name)}</td>
+        <td>${escapeHtml(m.location)}</td>
+        <td>${escapeHtml(m.inspector)}</td>
+        <td>${escapeHtml(m.dept)}</td>
+        <td>${escapeHtml(m.manufacturer || '-')}</td>
+        <td>${escapeHtml(m.scrap_date)}</td>
         <td class="${cls}">${diff < 0 ? '已过期' + Math.abs(diff) + '天' : diff + '天'}</td>
       </tr>
     `;
@@ -528,11 +528,11 @@ async function loadFireAnalysis() {
   const inspectors = [...new Set(fireAnalysisData.map(f => f.inspector).filter(Boolean))].sort();
   const specs = [...new Set(fireAnalysisData.map(f => f.spec).filter(Boolean))].sort();
   document.getElementById('fireDeptFilter').innerHTML =
-    '<option value="">全部责任部门</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+    '<option value="">全部责任部门</option>' + depts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
   document.getElementById('fireInspectorFilter').innerHTML =
-    '<option value="">全部点检人</option>' + inspectors.map(d => `<option value="${d}">${d}</option>`).join('');
+    '<option value="">全部点检人</option>' + inspectors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
   document.getElementById('fireSpecFilter').innerHTML =
-    '<option value="">全部规格</option>' + specs.map(d => `<option value="${d}">${d}</option>`).join('');
+    '<option value="">全部规格</option>' + specs.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
   renderFireAnalysis();
   renderFireDetail();
 }
@@ -564,13 +564,13 @@ function renderFireDetail() {
   document.getElementById('fireDetailCount').textContent = filtered.length;
   document.getElementById('fireDetailTable').innerHTML = filtered.map(f => `
     <tr>
-      <td>${f.code}</td>
-      <td>${f.spec}</td>
-      <td>${f.location}</td>
-      <td>${f.inspector}</td>
-      <td>${f.dept}</td>
-      <td>${f.manufacturer || '-'}</td>
-      <td>${f.scrap_date || '-'}</td>
+      <td>${escapeHtml(f.code)}</td>
+      <td>${escapeHtml(f.spec)}</td>
+      <td>${escapeHtml(f.location)}</td>
+      <td>${escapeHtml(f.inspector)}</td>
+      <td>${escapeHtml(f.dept)}</td>
+      <td>${escapeHtml(f.manufacturer || '-')}</td>
+      <td>${escapeHtml(f.scrap_date || '-')}</td>
     </tr>
   `).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;">无匹配记录</td></tr>';
 }
@@ -625,9 +625,9 @@ async function loadLightAnalysis() {
   const depts = [...new Set(devices.map(d => d.dept).filter(Boolean))].sort();
   const inspectors = [...new Set(devices.map(d => d.inspector).filter(Boolean))].sort();
   document.getElementById('lightDeptFilter').innerHTML =
-    '<option value="">全部责任部门</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+    '<option value="">全部责任部门</option>' + depts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
   document.getElementById('lightInspectorFilter').innerHTML =
-    '<option value="">全部点检人</option>' + inspectors.map(d => `<option value="${d}">${d}</option>`).join('');
+    '<option value="">全部点检人</option>' + inspectors.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
   document.getElementById('lightDetailCount').textContent = formatNumber(devices.length);
   renderLightAnalysis();
   renderLightDetail();
@@ -694,13 +694,13 @@ function renderLightDetail() {
   document.getElementById('lightDetailCount').textContent = rows.length;
   document.getElementById('lightDetailTable').innerHTML = rows.map(d => `
     <tr>
-      <td style="font-weight:600;">${d.code || '-'}</td>
-      <td>${d.location || '-'}</td>
-      <td>${d.dept || '（未填）'}</td>
-      <td>${d.vendor || '-'}</td>
-      <td>${d.inspector || '（未填）'}</td>
+      <td style="font-weight:600;">${escapeHtml(d.code || '-')}</td>
+      <td>${escapeHtml(d.location || '-')}</td>
+      <td>${escapeHtml(d.dept || '（未填）')}</td>
+      <td>${escapeHtml(d.vendor || '-')}</td>
+      <td>${escapeHtml(d.inspector || '（未填）')}</td>
       <td>${d.status
-        ? `<span class="badge ${d.status.includes('异常') ? 'badge-red' : 'badge-green'}">${d.status}</span>`
+        ? `<span class="badge ${d.status.includes('异常') ? 'badge-red' : 'badge-green'}">${escapeHtml(d.status)}</span>`
         : '-'}</td>
     </tr>
   `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;">无匹配设备</td></tr>';
