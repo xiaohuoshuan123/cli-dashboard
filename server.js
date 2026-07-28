@@ -148,30 +148,37 @@ app.post('/api/cache/clear', (req, res) => {
 // 核心统计
 app.get('/api/stats', async (req, res) => {
   try {
-    const [codeCount] = await query('SELECT COUNT(*) as count FROM base_codeinfo');
-    const [recordCount] = await query('SELECT COUNT(*) as count FROM base_table_data');
-    const [taskCount] = await query('SELECT COUNT(*) as count FROM code_task_log');
-    const [memberCount] = await query('SELECT COUNT(*) as count FROM base_auth_msg');
-    
-    // 计划完成率
+    const codeCount = (await query('SELECT COUNT(*) as count FROM base_codeinfo'))[0];
+    const taskCount = (await query('SELECT COUNT(*) as count FROM code_task_log'))[0];
+    const memberCount = (await query('SELECT COUNT(*) as count FROM base_auth_msg'))[0];
+
+    // 时间范围筛选（作用于 base_table_data 相关统计，实现"选时间段即按时间段分析"）
+    const dp = [];
+    let dateWhere = '';
+    if (req.query.startDate) { dateWhere += ' AND 记录时间 >= ?'; dp.push(req.query.startDate); }
+    if (req.query.endDate) { dateWhere += ' AND 记录时间 <= ?'; dp.push(req.query.endDate); }
+
+    const recordCount = (await query(`SELECT COUNT(*) as count FROM base_table_data WHERE 1=1 ${dateWhere}`, dp))[0];
+
+    // 计划完成率（全量，不随点检时间切片）
     const [taskStats] = await query(`
       SELECT 
         SUM(CASE WHEN 状态 = '完成' THEN 1 ELSE 0 END) as completed,
         COUNT(*) as total
       FROM code_task_log
     `);
-    
     const completionRate = taskStats.total > 0 
       ? ((taskStats.completed / taskStats.total) * 100).toFixed(1) 
       : 0;
 
-    // 时间范围
-    const [timeRange] = await query(`
-      SELECT 
-        MIN(记录时间) as earliest,
-        MAX(记录时间) as latest
-      FROM base_table_data
-    `);
+    // 时间范围：给定起止用给定值，否则用实际 MIN/MAX
+    let timeRange;
+    if (req.query.startDate || req.query.endDate) {
+      timeRange = { earliest: req.query.startDate || null, latest: req.query.endDate || null };
+    } else {
+      const [tr] = await query(`SELECT MIN(记录时间) as earliest, MAX(记录时间) as latest FROM base_table_data`);
+      timeRange = tr;
+    }
 
     res.json({
       codeCount: codeCount.count,
@@ -629,6 +636,11 @@ app.get('/api/codes/categories', async (req, res) => {
 app.get('/api/records/latest', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
+    const params = [];
+    let dateCond = '';
+    if (req.query.startDate) { dateCond += ` AND 记录时间 >= ?`; params.push(req.query.startDate); }
+    if (req.query.endDate) { dateCond += ` AND 记录时间 <= ?`; params.push(req.query.endDate); }
+    params.push(limit);
     const rows = await query(`
       SELECT 
         record_id,
@@ -637,9 +649,10 @@ app.get('/api/records/latest', async (req, res) => {
         记录时间,
         状态
       FROM base_table_data
+      WHERE 1=1 ${dateCond}
       ORDER BY 记录时间 DESC
       LIMIT ?
-    `, [limit]);
+    `, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -647,6 +660,63 @@ app.get('/api/records/latest', async (req, res) => {
 });
 
 // ========== 新增 API ==========
+
+// 设备类型归并：把 base_codeinfo.目录 / base_table_data.记录单名称 / code_task_log.计划名称
+// 统一归并到相同设备维度，便于"按设备类型总览"跨三张表聚合。
+function deviceKey(name) {
+  if (!name) return '其他';
+  if (name.includes('灭火器')) return '灭火器';
+  if (name.includes('应急灯')) return '应急灯';
+  if (name.includes('洗眼')) return '洗眼器';
+  if (name.includes('急救')) return '急救药箱';
+  if (name.includes('压力表')) return '压力表';
+  if (name.includes('气瓶')) return '气瓶';
+  if (name.includes('喷淋')) return '喷淋泵';
+  if (name.includes('应急物资')) return '应急物资';
+  return '其他';
+}
+
+// 按设备类型总览：基础码（base_codeinfo）+ 检查记录（base_table_data）+ 任务周期（code_task_log）
+// 检查记录/任务周期随全局时间切片（记录时间 / 开始时间）；基础码为静态库存，不随日期变化。
+app.get('/api/device-type/overview', async (req, res) => {
+  try {
+    const ip = [];
+    let iDate = '';
+    if (req.query.startDate) { iDate += ` AND 记录时间 >= ?`; ip.push(req.query.startDate); }
+    if (req.query.endDate) { iDate += ` AND 记录时间 <= ?`; ip.push(req.query.endDate); }
+
+    const tp = [];
+    let tDate = '';
+    if (req.query.startDate) { tDate += ` AND 开始时间 >= ?`; tp.push(req.query.startDate); }
+    if (req.query.endDate) { tDate += ` AND 开始时间 <= ?`; tp.push(req.query.endDate); }
+
+    const codeRows = await query(
+      `SELECT 目录, COUNT(*) as c FROM base_codeinfo WHERE 目录 IS NOT NULL AND 目录 != '' GROUP BY 目录`);
+    const inspRows = await query(
+      `SELECT 记录单名称, COUNT(*) as cnt, MAX(记录时间) as last_time FROM base_table_data WHERE 1=1 ${iDate} GROUP BY 记录单名称`, ip);
+    const taskRows = await query(
+      `SELECT 计划名称, COUNT(*) as total, SUM(CASE WHEN 状态='完成' OR 状态='超期完成' THEN 1 ELSE 0 END) as completed FROM code_task_log WHERE 1=1 ${tDate} GROUP BY 计划名称`, tp);
+
+    const map = {};
+    const ensure = k => map[k] || (map[k] = { type: k, baseCodes: 0, inspections: 0, lastTime: null, taskTotal: 0, taskCompleted: 0 });
+    codeRows.forEach(r => { const e = ensure(deviceKey(r.目录)); e.baseCodes += Number(r.c); });
+    inspRows.forEach(r => {
+      const e = ensure(deviceKey(r.记录单名称));
+      e.inspections += Number(r.cnt);
+      if (r.last_time && (!e.lastTime || r.last_time > e.lastTime)) e.lastTime = r.last_time;
+    });
+    taskRows.forEach(r => { const e = ensure(deviceKey(r.计划名称)); e.taskTotal += Number(r.total); e.taskCompleted += Number(r.completed); });
+
+    const list = Object.values(map).map(e => ({
+      ...e,
+      taskRate: e.taskTotal > 0 ? ((e.taskCompleted / e.taskTotal) * 100).toFixed(1) : null
+    }));
+    list.sort((a, b) => b.inspections - a.inspections);
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // 急救药箱药品有效期追踪（计算每种药品是否在有效期内）
 // 数据源：template_codeinfo_d25（子码主数据表，草料前台展示的「码」当前字段值）
@@ -847,9 +917,13 @@ app.get('/api/tasks/deadline', async (req, res) => {
   }
 });
 
-// 超期未完成记录
+// 超期未完成记录（支持按截止时间切片）
 app.get('/api/tasks/overdue', async (req, res) => {
   try {
+    const params = [];
+    let dateCond = '';
+    if (req.query.startDate) { dateCond += ` AND 截止时间 >= ?`; params.push(req.query.startDate); }
+    if (req.query.endDate) { dateCond += ` AND 截止时间 <= ?`; params.push(req.query.endDate); }
     const rows = await query(`
       SELECT 
         计划名称,
@@ -860,13 +934,13 @@ app.get('/api/tasks/overdue', async (req, res) => {
         执行时间,
         变更方式
       FROM code_task_log
-      WHERE 状态 IN ('超期未完成', '未完成')
+      WHERE 状态 IN ('超期未完成', '未完成') ${dateCond}
         AND (计划名称, 截止时间) IN (
           SELECT 计划名称, MAX(截止时间) FROM code_task_log GROUP BY 计划名称
         )
       ORDER BY 截止时间 DESC
       LIMIT 200
-    `);
+    `, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
