@@ -12,9 +12,6 @@ async function loadAllData() {
     loadLightTrend(),
     loadAidTrend(),
     loadEyeTrend(),
-    loadPressure(),
-    loadGas(),
-    loadResults(),
     loadMemberRanking(),
     loadFireRanking(),
     loadTaskDetails(),
@@ -23,9 +20,7 @@ async function loadAllData() {
     loadFireMaintenance(),
     loadFireScrap(),
     loadFireAnalysis(),
-    loadLightAnalysis(),
-    loadTaskDeadline(),
-    loadDeviceTypeOverview()
+    loadLightAnalysis()
   ];
   const results = await Promise.allSettled(tasks);
   const failed = results.filter(r => r.status === 'rejected');
