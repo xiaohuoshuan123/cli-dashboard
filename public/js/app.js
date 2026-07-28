@@ -23,6 +23,7 @@ async function loadAllData() {
     loadFireMaintenance(),
     loadFireScrap(),
     loadFireAnalysis(),
+    loadLightAnalysis(),
     loadTaskDeadline()
   ];
   const results = await Promise.allSettled(tasks);
