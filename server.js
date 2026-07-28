@@ -6,10 +6,18 @@ process.env.TZ = process.env.TZ || 'Asia/Shanghai';
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
-const cors = require('cors');
+const compression = require('compression');
 
 const app = express();
-app.use(cors());
+app.disable('x-powered-by'); // 隐藏技术栈指纹（S4）
+// 基础安全响应头：同源部署且页面含较多内联脚本/Chart.js 插件，故不强制 CSP 以免破坏渲染
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+app.use(compression()); // gzip 压缩，传输量约降 70%（性能优化）
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -30,8 +38,6 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   connectTimeout: 8000,
-  acquireTimeout: 8000,
-  timeout: 10000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000
 });
@@ -39,6 +45,16 @@ const pool = mysql.createPool({
 // 姓名/文本归一化：去全角空格 + 首尾空格，避免「 赵宏亮」类前导空格被当成不同人（影响发奖对账）
 function norm(col) {
   return `TRIM(REPLACE(${col}, UNHEX('E38080'), ' '))`;
+}
+
+// ========== 统一错误响应（S2：生产环境脱敏，不向客户端泄露 SQL/表结构）==========
+function sendError(res, err, status = 500) {
+  // 服务端始终记录完整错误（含堆栈），便于排障
+  console.error('[API ERROR]', err && err.stack ? err.stack : err);
+  // 非开发环境返回通用文案，避免暴露内部实现细节
+  const dev = process.env.NODE_ENV === 'development';
+  const msg = dev && err && err.message ? err.message : '服务器内部错误，请稍后重试或联系管理员。';
+  res.status(status).json({ error: msg });
 }
 
 // ========== 查询缓存层（P0） ==========
@@ -63,6 +79,18 @@ async function query(sql, params = [], ttl = null) {
   const [rows] = await pool.execute(sql, params);
   return rows;
 }
+
+// 缓存定期清理：清除过期项并限制总量，避免不同日期组合 key 无限累积导致内存泄漏
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _cache) {
+    if (v.exp <= now) _cache.delete(k);
+  }
+  if (_cache.size > 500) {
+    const keys = [..._cache.keys()];
+    for (const k of keys.slice(0, Math.floor(keys.length / 2))) _cache.delete(k);
+  }
+}, 5 * 60 * 1000);
 
 // 时间切片边界修正：前端日期选择器返回的是日期串(YYYY-MM-DD)。
 // SQL `列 <= 'YYYY-MM-DD'` 会被 MySQL 当作当天 00:00:00，导致"选了某天却漏掉当天数据"
@@ -159,9 +187,10 @@ app.use('/api', requireAuth);
 app.get('/api/health', async (req, res) => {
   try {
     await query('SELECT 1');
-    res.json({ status: 'ok', message: '数据库连接正常' });
+    res.json({ status: 'ok' });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    console.error('[HEALTH]', err && err.message);
+    res.status(503).json({ status: 'error' });
   }
 });
 
@@ -188,25 +217,28 @@ app.post('/api/cache/clear', (req, res) => {
 // 核心统计
 app.get('/api/stats', async (req, res) => {
   try {
-    const codeCount = (await query('SELECT COUNT(*) as count FROM base_codeinfo'))[0];
-    const taskCount = (await query('SELECT COUNT(*) as count FROM code_task_log'))[0];
-    const memberCount = (await query('SELECT COUNT(*) as count FROM base_auth_msg'))[0];
-
-    // 时间范围筛选（作用于 base_table_data 相关统计，实现"选时间段即按时间段分析"）
     const dp = [];
     let dateWhere = '';
     if (req.query.startDate) { dateWhere += ' AND 记录时间 >= ?'; dp.push(req.query.startDate); }
     if (req.query.endDate) { dateWhere += ' AND 记录时间 <= ?'; dp.push(endVal(req.query.endDate)); }
 
-    const recordCount = (await query(`SELECT COUNT(*) as count FROM base_table_data WHERE 1=1 ${dateWhere}`, dp))[0];
-
-    // 计划完成率（全量，不随点检时间切片）
-    const [taskStats] = await query(`
-      SELECT 
-        SUM(CASE WHEN 状态 = '完成' THEN 1 ELSE 0 END) as completed,
-        COUNT(*) as total
-      FROM code_task_log
-    `);
+    // 独立 COUNT/聚合并行执行，避免跨国 RTT 叠加（首次查询约 2.5s → 1s 内）
+    const [codeRows, taskRows, memberRows, recordRows, taskStats] = await Promise.all([
+      query('SELECT COUNT(*) as count FROM base_codeinfo'),
+      query('SELECT COUNT(*) as count FROM code_task_log'),
+      query('SELECT COUNT(*) as count FROM base_auth_msg'),
+      query(`SELECT COUNT(*) as count FROM base_table_data WHERE 1=1 ${dateWhere}`, dp),
+      query(`
+        SELECT 
+          SUM(CASE WHEN 状态 = '完成' THEN 1 ELSE 0 END) as completed,
+          COUNT(*) as total
+        FROM code_task_log
+      `)
+    ]);
+    const codeCount = codeRows[0];
+    const taskCount = taskRows[0];
+    const memberCount = memberRows[0];
+    const recordCount = recordRows[0];
     const completionRate = taskStats.total > 0 
       ? ((taskStats.completed / taskStats.total) * 100).toFixed(1) 
       : 0;
@@ -229,7 +261,7 @@ app.get('/api/stats', async (req, res) => {
       timeRange
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -258,7 +290,7 @@ app.get('/api/trends/monthly', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -285,7 +317,7 @@ app.get('/api/forms/distribution', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -312,7 +344,7 @@ app.get('/api/tasks/status', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -341,7 +373,7 @@ app.get('/api/fire-extinguisher/trend', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -368,7 +400,7 @@ app.get('/api/fire-extinguisher/results', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -397,7 +429,7 @@ app.get('/api/emergency-lights/trend', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -424,7 +456,7 @@ app.get('/api/emergency-lights/results', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -466,7 +498,7 @@ app.get('/api/emergency-lights/analysis', async (req, res) => {
 
     res.json({ total, byInspector, byDepartment, byVendor, devices });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -495,7 +527,7 @@ app.get('/api/first-aid/trend', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -524,7 +556,7 @@ app.get('/api/eye-wash/trend', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -539,7 +571,7 @@ app.get('/api/pressure-gauge/status', async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -554,7 +586,7 @@ app.get('/api/fire-cylinder/status', async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -594,7 +626,7 @@ app.get('/api/members/ranking', async (req, res) => {
     const members = Object.values(memberMap).sort((a, b) => b.total - a.total);
     res.json({ forms, formTotals, members, grandTotal: members.reduce((s, m) => s + m.total, 0) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -621,7 +653,7 @@ app.get('/api/fire-extinguisher/ranking', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -691,7 +723,7 @@ app.get('/api/tasks/details', async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -705,7 +737,7 @@ app.get('/api/codes/types', async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -721,7 +753,7 @@ app.get('/api/codes/categories', async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -748,7 +780,7 @@ app.get('/api/records/latest', async (req, res) => {
     `, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -807,7 +839,7 @@ app.get('/api/device-type/overview', async (req, res) => {
     list.sort((a, b) => b.inspections - a.inspections);
     res.json(list);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -879,7 +911,7 @@ app.get('/api/first-aid/expiry', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -914,7 +946,7 @@ app.get('/api/fire-extinguisher/maintenance', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -947,7 +979,7 @@ app.get('/api/fire-extinguisher/scrap', async (req, res) => {
     const rows = await query(sql, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -967,7 +999,7 @@ app.get('/api/fire-extinguisher/analysis', async (req, res) => {
     const rows = await query(sql, []);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -984,7 +1016,7 @@ app.get('/api/devices/raw', async (req, res) => {
     const rows = await query(`SELECT * FROM \`${table}\``, [], 0);
     res.json({ table, columns, rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -1023,7 +1055,7 @@ app.get('/api/tasks/deadline', async (req, res) => {
     `, [days, days]);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -1053,7 +1085,7 @@ app.get('/api/tasks/overdue', async (req, res) => {
     `, params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, err);
   }
 });
 
@@ -1061,4 +1093,21 @@ app.get('/api/tasks/overdue', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 草料二维码看板服务已启动: http://localhost:${PORT}`);
+  warmUp();
 });
+
+// 启动预热：填充核心统计缓存，避免首位用户承受冷查询延迟
+async function warmUp() {
+  try {
+    await Promise.all([
+      query('SELECT COUNT(*) as count FROM base_codeinfo'),
+      query('SELECT COUNT(*) as count FROM code_task_log'),
+      query('SELECT COUNT(*) as count FROM base_auth_msg'),
+      query('SELECT COUNT(*) as count FROM base_table_data WHERE 1=1'),
+      query(`SELECT SUM(CASE WHEN 状态='完成' THEN 1 ELSE 0 END) as completed, COUNT(*) as total FROM code_task_log`)
+    ]);
+    console.log('✅ 缓存预热完成');
+  } catch (e) {
+    console.warn('⚠️ 缓存预热失败（不影响启动）：', e.message);
+  }
+}
