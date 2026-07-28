@@ -24,7 +24,8 @@ async function loadAllData() {
     loadFireScrap(),
     loadFireAnalysis(),
     loadLightAnalysis(),
-    loadTaskDeadline()
+    loadTaskDeadline(),
+    loadDeviceTypeOverview()
   ];
   const results = await Promise.allSettled(tasks);
   const failed = results.filter(r => r.status === 'rejected');
