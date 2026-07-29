@@ -1090,7 +1090,7 @@ app.get('/api/tasks/overdue', async (req, res) => {
 });
 
 // ========== 启动前密钥校验（fail-closed） ==========
-// DB 密码与访问令牌【必须】来自环境变量，缺失则拒绝启动，避免硬编码兜底泄露/误用。
+// DB 密码与访问令牌【必须】来自环境变量（变量名精确匹配 DB_PASSWORD / ACCESS_TOKEN），缺失则拒绝启动，避免硬编码兜底泄露/误用。
 const _missing = [];
 if (!process.env.DB_PASSWORD) _missing.push('DB_PASSWORD');
 if (!process.env.ACCESS_TOKEN) _missing.push('ACCESS_TOKEN');
