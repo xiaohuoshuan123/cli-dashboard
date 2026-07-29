@@ -578,7 +578,7 @@ function renderFireDetail() {
 function renderFireAnalysis() {
   const tab = currentFireTab;
   const titleMap = { spec: '按规格分布', inspector: '按负责人(点检人)分布', dept: '按责任部门分布', manufacturer: '按生产厂家分布' };
-  document.getElementById('fireAnalysisTitle').textContent = `${titleMap[tab]}（共 ${fireAnalysisData.length} 个 · 来源 template_codeinfo_d10）`;
+  document.getElementById('fireAnalysisTitle').textContent = `${titleMap[tab]}（共 ${fireAnalysisData.length} 个 · 来源：template_codeinfo_d10）`;
   
   const count = {};
   fireAnalysisData.forEach(f => {
@@ -644,7 +644,7 @@ function renderLightAnalysis() {
   const tab = currentLightTab;
   const titleMap = { inspector: '按检查人分布', department: '按责任部门分布', vendor: '按生产厂商分布' };
   document.getElementById('lightAnalysisTitle').textContent =
-    `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 个设备 · 来源 template_codeinfo_d15）`;
+    `${titleMap[tab]}（共 ${formatNumber(lightAnalysisData.total)} 个设备 · 来源：template_codeinfo_d15）`;
 
   let labels = [], data = [], colors = null;
   if (tab === 'inspector') {
@@ -704,5 +704,253 @@ function renderLightDetail() {
         : '-'}</td>
     </tr>
   `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;">无匹配设备</td></tr>';
+}
+
+// ========== 压力表多维度分析（数据源：template_codeinfo_d12） ==========
+let pressureData = null;
+let currentPressureTab = null;
+
+async function loadPressureAnalysis() {
+  const params = new URLSearchParams();
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  if (s) params.set('startDate', s);
+  if (e) params.set('endDate', e);
+  try {
+    pressureData = await fetchAPI(`/pressure-gauge/analysis?${params}`);
+  } catch (err) {
+    console.warn('压力表分析加载失败:', err);
+    return;
+  }
+  const dims = pressureData.dims || [];
+  const tabsEl = document.getElementById('pressureTabs');
+  if (dims.length) {
+    currentPressureTab = dims[0].key;
+    tabsEl.innerHTML = dims.map((d, i) =>
+      `<div class="tab ${i === 0 ? 'active' : ''}" onclick="switchPressureTab('${escapeHtml(d.key)}', this)">${escapeHtml(d.label)}</div>`
+    ).join('');
+  } else {
+    tabsEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">未识别到可分析维度列</div>';
+  }
+  // 筛选下拉（搜索框 + 各维度下拉）
+  const fb = document.getElementById('pressureFilterBar');
+  const selects = dims.map(d =>
+    `<select id="pressureFilter_${escapeHtml(d.key)}" onchange="renderPressureDetail()"><option value="">全部${escapeHtml(d.label)}</option>${
+      d.data.map(x => `<option value="${escapeHtml(x.label)}">${escapeHtml(x.label)}</option>`).join('')
+    }</select>`
+  ).join('');
+  fb.innerHTML = '<input type="text" id="pressureSearch" placeholder="🔍 查找..." oninput="renderPressureDetail()" style="min-width:200px;">' + selects;
+
+  document.getElementById('pressureDetailCount').textContent = (pressureData.devices || []).length;
+  renderPressureAnalysis();
+  renderPressureDetail();
+  renderPressureExpiry();
+}
+
+function switchPressureTab(tab, el) {
+  currentPressureTab = tab;
+  document.querySelectorAll('#pressureAnalysis .tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderPressureAnalysis();
+}
+
+function renderPressureAnalysis() {
+  const dims = pressureData.dims || [];
+  const dim = dims.find(d => d.key === currentPressureTab) || dims[0];
+  if (!dim) return;
+  document.getElementById('pressureAnalysisTitle').textContent = `${dim.label}分布（共 ${pressureData.total} 个 · 来源：template_codeinfo_d12）`;
+  const labels = dim.data.map(d => d.label);
+  const data = dim.data.map(d => d.count);
+  const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16'];
+  const useDoughnut = labels.length <= 6;
+  destroyChart('pressureAnalysis');
+  charts.pressureAnalysis = new Chart(document.getElementById('pressureAnalysisChart'), {
+    type: useDoughnut ? 'doughnut' : 'bar',
+    data: { labels, datasets: [{ label: '数量', data, backgroundColor: palette }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: useDoughnut, position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      ...(useDoughnut ? {} : {
+        indexAxis: 'y',
+        layout: { padding: { left: 8 } },
+        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 10 } } } }
+      })
+    }
+  });
+}
+
+function renderPressureDetail() {
+  const devices = pressureData.devices || [];
+  const cols = pressureData.columns || [];
+  const dims = pressureData.dims || [];
+  const kw = (document.getElementById('pressureSearch').value || '').trim().toLowerCase();
+  const filtered = devices.filter(d => {
+    for (const dim of dims) {
+      const sel = document.getElementById('pressureFilter_' + dim.key);
+      if (sel && sel.value && String(d[dim.column] || '') !== sel.value) return false;
+    }
+    if (kw) {
+      const hay = cols.map(c => d[c]).filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(kw)) return false;
+    }
+    return true;
+  });
+  document.getElementById('pressureDetailCount').textContent = filtered.length;
+  renderGenericTable('pressureDetailTable', filtered, cols);
+}
+
+function renderPressureExpiry() {
+  const exp = pressureData.expiry;
+  const el = document.getElementById('pressureExpiryTable');
+  if (!exp || !exp.rows || !exp.rows.length) {
+    el.innerHTML = '<div style="padding:12px;color:#94a3b8;">暂无检验即将到期或已逾期的压力表（90 天内）</div>';
+    return;
+  }
+  renderExpiryTable('pressureExpiryTable', exp.rows, pressureData.columns, exp.column);
+}
+
+function exportPressureExpiry() {
+  const exp = pressureData && pressureData.expiry;
+  if (!exp || !exp.rows || !exp.rows.length) { alert('暂无到期数据可导出'); return; }
+  const cols = pressureData.columns;
+  const head = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  const body = exp.rows.map(r => '<tr>' + cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join('') + '</tr>').join('');
+  downloadExcelHtml(`<table border="1"><thead>${head}</thead><tbody>${body}</tbody></table>`, '压力表检验到期预警-template_codeinfo_d12');
+}
+
+// ========== 气体灭火系统储气瓶看板（数据源：template_codeinfo_d14） ==========
+let cylinderData = null;
+let currentCylinderTab = null;
+
+async function loadGasCylinderAnalysis() {
+  const params = new URLSearchParams();
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  if (s) params.set('startDate', s);
+  if (e) params.set('endDate', e);
+  try {
+    cylinderData = await fetchAPI(`/gas-cylinder/analysis?${params}`);
+  } catch (err) {
+    console.warn('储气瓶分析加载失败:', err);
+    return;
+  }
+  const dims = cylinderData.dims || [];
+  const tabsEl = document.getElementById('cylinderTabs');
+  if (dims.length) {
+    currentCylinderTab = dims[0].key;
+    tabsEl.innerHTML = dims.map((d, i) =>
+      `<div class="tab ${i === 0 ? 'active' : ''}" onclick="switchCylinderTab('${escapeHtml(d.key)}', this)">${escapeHtml(d.label)}</div>`
+    ).join('');
+  } else {
+    tabsEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">未识别到可分析维度列</div>';
+  }
+  const fb = document.getElementById('cylinderFilterBar');
+  const selects = dims.map(d =>
+    `<select id="cylinderFilter_${escapeHtml(d.key)}" onchange="renderCylinderDetail()"><option value="">全部${escapeHtml(d.label)}</option>${
+      d.data.map(x => `<option value="${escapeHtml(x.label)}">${escapeHtml(x.label)}</option>`).join('')
+    }</select>`
+  ).join('');
+  fb.innerHTML = '<input type="text" id="cylinderSearch" placeholder="🔍 查找..." oninput="renderCylinderDetail()" style="min-width:200px;">' + selects;
+
+  document.getElementById('cylinderDetailCount').textContent = (cylinderData.devices || []).length;
+  renderCylinderAnalysis();
+  renderCylinderDetail();
+}
+
+function switchCylinderTab(tab, el) {
+  currentCylinderTab = tab;
+  document.querySelectorAll('#cylinderAnalysis .tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderCylinderAnalysis();
+}
+
+function renderCylinderAnalysis() {
+  const dims = cylinderData.dims || [];
+  const dim = dims.find(d => d.key === currentCylinderTab) || dims[0];
+  if (!dim) return;
+  document.getElementById('cylinderAnalysisTitle').textContent = `${dim.label}分布（共 ${cylinderData.total} 个 · 来源：template_codeinfo_d14）`;
+  const labels = dim.data.map(d => d.label);
+  const data = dim.data.map(d => d.count);
+  const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16','#a855f7','#14b8a6'];
+  const useDoughnut = labels.length <= 6;
+  destroyChart('cylinderAnalysis');
+  charts.cylinderAnalysis = new Chart(document.getElementById('cylinderAnalysisChart'), {
+    type: useDoughnut ? 'doughnut' : 'bar',
+    data: { labels, datasets: [{ label: '数量', data, backgroundColor: palette }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: useDoughnut, position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      ...(useDoughnut ? {} : {
+        indexAxis: 'y',
+        layout: { padding: { left: 8 } },
+        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 10 } } } }
+      })
+    }
+  });
+}
+
+function renderCylinderDetail() {
+  const devices = cylinderData.devices || [];
+  const cols = cylinderData.columns || [];
+  const dims = cylinderData.dims || [];
+  const kw = (document.getElementById('cylinderSearch').value || '').trim().toLowerCase();
+  const filtered = devices.filter(d => {
+    for (const dim of dims) {
+      const sel = document.getElementById('cylinderFilter_' + dim.key);
+      if (sel && sel.value && String(d[dim.column] || '') !== sel.value) return false;
+    }
+    if (kw) {
+      const hay = cols.map(c => d[c]).filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(kw)) return false;
+    }
+    return true;
+  });
+  document.getElementById('cylinderDetailCount').textContent = filtered.length;
+  renderGenericTable('cylinderDetailTable', filtered, cols);
+}
+
+// ========== 通用：动态列明细表 / 到期预警表 ==========
+function renderGenericTable(containerId, devices, columns) {
+  const cols = columns || [];
+  if (!cols.length) {
+    document.getElementById(containerId).innerHTML = '<div style="padding:12px;color:#94a3b8;">无列信息</div>';
+    return;
+  }
+  const head = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  const body = devices.map(r =>
+    '<tr>' + cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join('') + '</tr>'
+  ).join('');
+  document.getElementById(containerId).innerHTML =
+    `<table><thead>${head}</thead><tbody>${body || `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;">无匹配记录</td></tr>`}</tbody></table>`;
+}
+
+function parseFlexDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  let m = s.match(/^(\d{4})[年\/\-](\d{1,2})[月\/\-](\d{1,2})/);
+  if (!m) m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (!m) return null;
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+
+function renderExpiryTable(containerId, rows, columns, dateCol) {
+  const cols = columns || [];
+  if (!cols.length) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const head = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  const body = rows.map(r => {
+    const d = parseFlexDate(r[dateCol]);
+    const days = d ? Math.round((d - today) / 86400000) : null;
+    const cls = days == null ? '' : (days < 0 ? 'badge-red' : 'badge-yellow');
+    const tag = days == null ? '' : (days < 0 ? `（已逾期${-days}天）` : `（剩${days}天）`);
+    return '<tr>' + cols.map(c => {
+      if (c === dateCol) {
+        return `<td><span class="badge ${cls}">${escapeHtml(r[c])}${escapeHtml(tag)}</span></td>`;
+      }
+      return `<td>${escapeHtml(r[c])}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+  document.getElementById(containerId).innerHTML =
+    `<table><thead>${head}</thead><tbody>${body || `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;">无即将到期/已逾期的设备</td></tr>`}</tbody></table>`;
 }
 
