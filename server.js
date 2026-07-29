@@ -502,6 +502,73 @@ app.get('/api/emergency-lights/analysis', async (req, res) => {
   }
 });
 
+// ========== 通用「批量码主数据表」多维度分析构造器 ==========
+// table: 库表名；dimKeywords: [{key,label,kw}] 按关键词匹配列做分组统计；
+// dateKeywords: 到期日列关键词数组（用于到期预警，可为 null）；
+// 全部基于 information_schema 运行时发现列，无需硬编码字段名（兼顾草料字段可能调整）。
+async function buildTemplateAnalysis(table, dimKeywords, dateKeywords) {
+  const norm = (col) => `TRIM(REPLACE(\`${col}\`, UNHEX('E38080'), ' '))`;
+  const colRows = await query(
+    `SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ORDINAL_POSITION`,
+    [dbConfig.database, table], 0);
+  const cols = colRows.map(r => r.COLUMN_NAME);
+
+  const dims = [];
+  for (const d of dimKeywords) {
+    const col = cols.find(c => c.includes(d.kw));
+    if (!col) continue; // 该维度列不存在则跳过（降级，不报错）
+    const rows = await query(
+      `SELECT ${norm(col)} AS v, COUNT(*) AS cnt FROM \`${table}\` GROUP BY ${norm(col)} ORDER BY cnt DESC`);
+    dims.push({ key: d.key, label: d.label, column: col, data: rows.map(r => ({ label: r.v || '（未填）', count: r.cnt })) });
+  }
+
+  const devices = await query(`SELECT * FROM \`${table}\``);
+
+  let expiry = null;
+  if (dateKeywords && dateKeywords.length) {
+    const dateCol = cols.find(c => dateKeywords.some(k => c.includes(k)));
+    if (dateCol) {
+      let rows = await query(
+        `SELECT * FROM \`${table}\` WHERE \`${dateCol}\` IS NOT NULL AND \`${dateCol}\` <= DATE_ADD(CURDATE(), INTERVAL 90 DAY) ORDER BY \`${dateCol}\` ASC`);
+      // 排除明显停用/报废设备（仅当存在状态类列且其值含停用关键词时）
+      const statusCol = cols.find(c => c.includes('状态'));
+      if (statusCol) {
+        const retiredKw = ['停用', '报废', '废弃', '封存', '闲置'];
+        rows = rows.filter(r => !retiredKw.some(k => String(r[statusCol] || '').includes(k)));
+      }
+      expiry = { column: dateCol, rows };
+    }
+  }
+  return { total: devices.length, columns: cols, dims, devices, expiry };
+}
+
+// 压力表多维度分析（数据源：template_codeinfo_d12 子码主数据）
+// 维度：管理人 / 使用介质 / 制造商 / 型号规格；附检验到期预警（90 天内或已逾期）与全量台账导出。
+app.get('/api/pressure-gauge/analysis', async (req, res) => {
+  try {
+    const data = await buildTemplateAnalysis('template_codeinfo_d12', [
+      { key: 'manager', label: '管理人', kw: '管理人' },
+      { key: 'medium', label: '使用介质', kw: '使用介质' },
+      { key: 'manufacturer', label: '制造商', kw: '制造商' },
+      { key: 'model', label: '型号规格', kw: '型号' },
+    ], ['检验到期', '检验日期', '下次检验', '校准到期']);
+    res.json(data);
+  } catch (err) { sendError(res, err); }
+});
+
+// 气体灭火系统储气瓶看板（数据源：template_codeinfo_d14 子码主数据）
+// 维度：充装介质 / 存放地点 / 责任部门；附全量台账导出。
+app.get('/api/gas-cylinder/analysis', async (req, res) => {
+  try {
+    const data = await buildTemplateAnalysis('template_codeinfo_d14', [
+      { key: 'medium', label: '充装介质', kw: '充装介质' },
+      { key: 'location', label: '存放地点', kw: '存放地点' },
+      { key: 'dept', label: '责任部门', kw: '责任部门' },
+    ], null);
+    res.json(data);
+  } catch (err) { sendError(res, err); }
+});
+
 // 急救药箱点检趋势
 app.get('/api/first-aid/trend', async (req, res) => {
   try {
@@ -1006,7 +1073,7 @@ app.get('/api/fire-extinguisher/analysis', async (req, res) => {
 // 原始设备主数据导出（不做任何加工，直接来自草料批量码信息表）
 app.get('/api/devices/raw', async (req, res) => {
   try {
-    const map = { extinguisher: 'template_codeinfo_d10', light: 'template_codeinfo_d15' };
+    const map = { extinguisher: 'template_codeinfo_d10', light: 'template_codeinfo_d15', pressure: 'template_codeinfo_d12', cylinder: 'template_codeinfo_d14' };
     const table = map[req.query.type];
     if (!table) return res.status(400).json({ error: '未知设备类型，type 须为 extinguisher 或 light' });
     const colRows = await query(
