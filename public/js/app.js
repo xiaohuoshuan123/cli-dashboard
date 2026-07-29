@@ -19,7 +19,9 @@ async function loadAllData() {
     loadFireMaintenance(),
     loadFireScrap(),
     loadFireAnalysis(),
-    loadLightAnalysis()
+    loadLightAnalysis(),
+    loadPressureAnalysis(),
+    loadGasCylinderAnalysis()
   ];
   const results = await Promise.allSettled(tasks);
   const failed = results.filter(r => r.status === 'rejected');
