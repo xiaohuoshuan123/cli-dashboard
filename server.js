@@ -564,7 +564,7 @@ app.get('/api/pressure-gauge/analysis', async (req, res) => {
 });
 
 // 气体灭火系统储气瓶看板（数据源：template_codeinfo_d14 子码主数据）
-// 维度：充装介质 / 存放地点 / 责任部门；附全量台账导出。
+// 维度：存放地点 / 责任部门；附全量台账导出。（已按用户要求去掉充装介质维度）
 app.get('/api/gas-cylinder/analysis', async (req, res) => {
   try {
     const data = await buildTemplateAnalysis('template_codeinfo_d14', [
