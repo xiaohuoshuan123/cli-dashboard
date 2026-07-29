@@ -648,7 +648,7 @@ tr:hover { background: #f8fafc; }
         </div>
       </div>
       <div class="card">
-        <div class="card-title">灭火器明细列表（共 <span id="fireDetailCount">0</span> 个 · 来源 template_codeinfo_d10）</div>
+        <div class="card-title">灭火器明细列表（共 <span id="fireDetailCount">0</span> 个 · 来源：template_codeinfo_d10）</div>
         <div class="filter-bar">
           <input type="text" id="fireSearch" placeholder="🔍 精确查找：编号/名称/位置/点检人/部门/厂家" oninput="renderFireDetail()" style="min-width:240px;">
           <select id="fireDeptFilter" onchange="renderFireDetail()"><option value="">全部责任部门</option></select>
@@ -686,7 +686,7 @@ tr:hover { background: #f8fafc; }
         </div>
       </div>
       <div class="card">
-        <div class="card-title">消防应急灯明细表（共 <span id="lightDetailCount">0</span> 个设备 · 来源 template_codeinfo_d15）</div>
+        <div class="card-title">消防应急灯明细表（共 <span id="lightDetailCount">0</span> 个设备 · 来源：template_codeinfo_d15）</div>
         <div class="filter-bar">
           <input type="text" id="lightSearch" placeholder="🔍 查找编码/位置/责任部门/厂商/点检人" oninput="renderLightDetail()" style="min-width:200px;">
           <select id="lightDeptFilter" onchange="renderLightDetail()"><option value="">全部责任部门</option></select>
@@ -698,6 +698,67 @@ tr:hover { background: #f8fafc; }
             <thead><tr><th>设备编码</th><th>安装位置</th><th>责任部门</th><th>生产厂家</th><th>点检人</th><th>状态</th></tr></thead>
             <tbody id="lightDetailTable"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 压力表多维度分析 -->
+  <div class="section">
+    <div class="section-title">
+      🧯 压力表多维度分析（来源：template_codeinfo_d12）
+      <button class="toggle-btn" onclick="toggleSection('pressureAnalysis')">收起</button>
+    </div>
+    <div class="section-content" id="pressureAnalysis">
+      <div class="tabs" id="pressureTabs"><!-- JS 注入维度页签 --></div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title" id="pressureAnalysisTitle">分布</div>
+        <div class="chart-container chart-h300" style="max-width:680px;margin:0 auto;">
+          <canvas id="pressureAnalysisChart"></canvas>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title">压力表检验到期预警（来源：template_codeinfo_d12）</div>
+        <div class="tb-bar"><button class="btn-export" onclick="exportPressureExpiry()">📥 导出到期预警(Excel)</button></div>
+        <div class="table-wrap" style="max-height:300px;">
+          <div id="pressureExpiryTable"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">压力表设备清单（共 <span id="pressureDetailCount">0</span> 个 · 来源：template_codeinfo_d12）</div>
+        <div class="filter-bar" id="pressureFilterBar">
+          <input type="text" id="pressureSearch" placeholder="🔍 查找..." oninput="renderPressureDetail()" style="min-width:200px;">
+        </div>
+        <div class="tb-bar"><button class="btn-export" onclick="exportRawDevice('pressure','压力表设备清单-原始数据-template_codeinfo_d12')">📥 导出原始库表(Excel)</button></div>
+        <div class="table-wrap" style="max-height:340px;">
+          <div id="pressureDetailTable"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 气体灭火系统储气瓶看板 -->
+  <div class="section">
+    <div class="section-title">
+      🛢️ 气体灭火系统储气瓶看板（来源：template_codeinfo_d14）
+      <button class="toggle-btn" onclick="toggleSection('cylinderAnalysis')">收起</button>
+    </div>
+    <div class="section-content" id="cylinderAnalysis">
+      <div class="tabs" id="cylinderTabs"><!-- JS 注入维度页签 --></div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title" id="cylinderAnalysisTitle">分布</div>
+        <div class="chart-container chart-h300" style="max-width:680px;margin:0 auto;">
+          <canvas id="cylinderAnalysisChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">储气瓶设备信息（共 <span id="cylinderDetailCount">0</span> 个 · 来源：template_codeinfo_d14）</div>
+        <div class="filter-bar" id="cylinderFilterBar">
+          <input type="text" id="cylinderSearch" placeholder="🔍 查找..." oninput="renderCylinderDetail()" style="min-width:200px;">
+        </div>
+        <div class="tb-bar"><button class="btn-export" onclick="exportRawDevice('cylinder','储气瓶设备信息-原始数据-template_codeinfo_d14')">📥 导出原始库表(Excel)</button></div>
+        <div class="table-wrap" style="max-height:340px;">
+          <div id="cylinderDetailTable"></div>
         </div>
       </div>
     </div>
