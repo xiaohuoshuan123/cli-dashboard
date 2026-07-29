@@ -27,7 +27,7 @@ const dbConfig = {
   port: parseInt(process.env.DB_PORT) || 3306,
   database: process.env.DB_NAME || 'cli_44608921',
   user: process.env.DB_USER || 'cli_44608921',
-  password: process.env.DB_PASSWORD || '9507fd52fc87d7cfe3f1e756b725a156',
+  password: process.env.DB_PASSWORD, // fail-closed：必须来自环境变量，无硬编码兜底
   charset: 'utf8mb4'
 };
 
@@ -169,9 +169,9 @@ app.use('/api', rateLimiter);
 
 // ========== 基础访问控制（P0） ==========
 // 通过地址 ?token= 或请求头 x-api-token / Authorization: Bearer 携带访问令牌。
-// 默认令牌 cli-dash-2026，生产环境请通过环境变量 ACCESS_TOKEN 覆盖；
+// 访问令牌【必须】通过环境变量 ACCESS_TOKEN 注入（fail-closed：缺失则启动失败，见文件尾部校验）；
 // 可选 IP 白名单：ALLOWED_IPS=1.2.3.4,5.6.7.8（逗号分隔）
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN || 'cli-dash-2026';
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 function requireAuth(req, res, next) {
   if (req.path === '/health') return next(); // 健康检查免鉴权，便于监控探针
   const urlToken = req.query.token;
@@ -1088,6 +1088,16 @@ app.get('/api/tasks/overdue', async (req, res) => {
     sendError(res, err);
   }
 });
+
+// ========== 启动前密钥校验（fail-closed） ==========
+// DB 密码与访问令牌【必须】来自环境变量，缺失则拒绝启动，避免硬编码兜底泄露/误用。
+const _missing = [];
+if (!process.env.DB_PASSWORD) _missing.push('DB_PASSWORD');
+if (!process.env.ACCESS_TOKEN) _missing.push('ACCESS_TOKEN');
+if (_missing.length) {
+  console.error('❌ 启动失败：缺少必需的环境变量 -> ' + _missing.join(', ') + '。请在 Railway Variables 中配置后再启动。');
+  process.exit(1);
+}
 
 // 启动服务器
 const PORT = process.env.PORT || 3000;
