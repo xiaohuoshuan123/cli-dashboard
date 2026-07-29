@@ -506,7 +506,7 @@ app.get('/api/emergency-lights/analysis', async (req, res) => {
 // table: 库表名；dimKeywords: [{key,label,kw}] 按关键词匹配列做分组统计；
 // dateKeywords: 到期日列关键词数组（用于到期预警，可为 null）；
 // 全部基于 information_schema 运行时发现列，无需硬编码字段名（兼顾草料字段可能调整）。
-async function buildTemplateAnalysis(table, dimKeywords, dateKeywords) {
+async function buildTemplateAnalysis(table, dimKeywords, dateKeywords, inUseKw) {
   const norm = (col) => `TRIM(REPLACE(\`${col}\`, UNHEX('E38080'), ' '))`;
   const colRows = await query(
     `SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ORDINAL_POSITION`,
@@ -536,6 +536,13 @@ async function buildTemplateAnalysis(table, dimKeywords, dateKeywords) {
         const retiredKw = ['停用', '报废', '废弃', '封存', '闲置'];
         rows = rows.filter(r => !retiredKw.some(k => String(r[statusCol] || '').includes(k)));
       }
+      // 仅保留「是否在用」列为指定值（如 在用）的设备（用户要求预警只列出在用设备）
+      if (inUseKw) {
+        const inUseCol = cols.find(c => c.includes('是否在用') || c.includes('在用'));
+        if (inUseCol) {
+          rows = rows.filter(r => String(r[inUseCol] || '').includes(inUseKw));
+        }
+      }
       expiry = { column: dateCol, rows };
     }
   }
@@ -551,7 +558,7 @@ app.get('/api/pressure-gauge/analysis', async (req, res) => {
       { key: 'medium', label: '使用介质', kw: '使用介质' },
       { key: 'manufacturer', label: '制造商', kw: '制造商' },
       { key: 'model', label: '型号规格', kw: '型号' },
-    ], ['检验到期', '检验日期', '下次检验', '校准到期']);
+    ], ['检验到期', '检验日期', '下次检验', '校准到期'], '在用');
     res.json(data);
   } catch (err) { sendError(res, err); }
 });
@@ -561,7 +568,6 @@ app.get('/api/pressure-gauge/analysis', async (req, res) => {
 app.get('/api/gas-cylinder/analysis', async (req, res) => {
   try {
     const data = await buildTemplateAnalysis('template_codeinfo_d14', [
-      { key: 'medium', label: '充装介质', kw: '充装介质' },
       { key: 'location', label: '存放地点', kw: '存放地点' },
       { key: 'dept', label: '责任部门', kw: '责任部门' },
     ], null);
