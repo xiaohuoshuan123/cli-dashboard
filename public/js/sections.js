@@ -813,7 +813,8 @@ function exportPressureExpiry() {
   const exp = pressureData && pressureData.expiry;
   if (!exp || !exp.rows || !exp.rows.length) { alert('暂无到期数据可导出'); return; }
   const cols = pressureData.columns;
-  const head = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  const disp = displayColumns(cols);
+  const head = '<tr>' + cols.map((c, i) => `<th>${escapeHtml(disp[i])}</th>`).join('') + '</tr>';
   const body = exp.rows.map(r => '<tr>' + cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join('') + '</tr>').join('');
   downloadExcelHtml(`<table border="1"><thead>${head}</thead><tbody>${body}</tbody></table>`, '压力表检验到期预警-template_codeinfo_d12');
 }
@@ -910,13 +911,25 @@ function renderCylinderDetail() {
 }
 
 // ========== 通用：动态列明细表 / 到期预警表 ==========
+// 草料字段名形如「管理人_3170410」，表头去掉末尾 _数字ID 更美观；若去后缀后出现重名则保留原值以区分
+function stripColSuffix(col) { return (col || '').replace(/_\d+$/, ''); }
+function displayColumns(columns) {
+  const seen = {};
+  return (columns || []).map(c => {
+    const s = stripColSuffix(c);
+    if (seen[s]) return c; // 重名时保留原始（带ID）
+    seen[s] = 1;
+    return s;
+  });
+}
 function renderGenericTable(containerId, devices, columns) {
   const cols = columns || [];
   if (!cols.length) {
     document.getElementById(containerId).innerHTML = '<div style="padding:12px;color:#94a3b8;">无列信息</div>';
     return;
   }
-  const head = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  const disp = displayColumns(cols);
+  const head = '<tr>' + cols.map((c, i) => `<th>${escapeHtml(disp[i])}</th>`).join('') + '</tr>';
   const body = devices.map(r =>
     '<tr>' + cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join('') + '</tr>'
   ).join('');
@@ -937,7 +950,8 @@ function renderExpiryTable(containerId, rows, columns, dateCol) {
   const cols = columns || [];
   if (!cols.length) return;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const head = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  const disp = displayColumns(cols);
+  const head = '<tr>' + cols.map((c, i) => `<th>${escapeHtml(disp[i])}</th>`).join('') + '</tr>';
   const body = rows.map(r => {
     const d = parseFlexDate(r[dateCol]);
     const days = d ? Math.round((d - today) / 86400000) : null;
