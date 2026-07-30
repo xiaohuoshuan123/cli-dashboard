@@ -109,6 +109,14 @@ body {
   gap: 12px;
   margin-bottom: 20px;
 }
+.stats-row-inline {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.stats-row-inline .stat-card { flex: 1 1 0; min-width: 92px; }
 .stat-card {
   background: var(--card);
   border-radius: 10px;
@@ -496,7 +504,7 @@ tr:hover { background: #f8fafc; }
     <div class="section-content" id="codeByDevice">
       <div class="card">
         <div class="card-title">各设备二维码数量（合计 <span id="codeByDeviceTotal">--</span> · 与上方"二维码总数"同源）</div>
-        <div class="stats-row" id="codeByDeviceCards"><div class="loading">加载中</div></div>
+        <div class="stats-row-inline" id="codeByDeviceCards"><div class="loading">加载中</div></div>
       </div>
     </div>
   </div>
