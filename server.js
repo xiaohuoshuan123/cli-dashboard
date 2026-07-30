@@ -284,6 +284,12 @@ app.get('/api/code-by-device', async (req, res) => {
     const list = Object.entries(map).map(([type, count]) => ({ type, count }))
       .sort((a, b) => b.count - a.count);
     const total = list.reduce((s, e) => s + e.count, 0);
+    // detail=1：返回 目录×模板名称×状态 细分（诊断口径差异用，如 base_codeinfo 灭火器600 vs template_codeinfo_d10 533）
+    if (req.query.detail === '1') {
+      const detailRows = await query(
+        `SELECT 目录, 模板名称, 状态, COUNT(*) as c FROM base_codeinfo GROUP BY 目录, 模板名称, 状态 ORDER BY c DESC`);
+      return res.json({ total, list, detailRows });
+    }
     res.json({ total, list });
   } catch (err) { sendError(res, err); }
 });
