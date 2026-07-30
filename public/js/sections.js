@@ -1,3 +1,26 @@
+// ========== 设备二维码分布 ==========
+async function loadCodeByDevice() {
+  try {
+    const data = await fetchAPI('/code-by-device');
+    const totalEl = document.getElementById('codeByDeviceTotal');
+    if (totalEl) totalEl.textContent = formatNumber(data.total || 0);
+    const el = document.getElementById('codeByDeviceCards');
+    if (!el) return;
+    if (!data.list || !data.list.length) {
+      el.innerHTML = '<div class="loading">暂无数据</div>';
+      return;
+    }
+    el.innerHTML = data.list.map(d => `
+      <div class="stat-card fade-in">
+        <div class="number">${formatNumber(d.count)}</div>
+        <div class="label">${escapeHtml(d.type)}</div>
+      </div>`).join('');
+  } catch (err) {
+    const el = document.getElementById('codeByDeviceCards');
+    if (el) el.innerHTML = `<div style="color:#ef4444;">⚠️ 加载失败：${escapeHtml(err.message)}</div>`;
+  }
+}
+
 // ========== 加载核心指标 ==========
 async function loadStats() {
   const params = new URLSearchParams();
