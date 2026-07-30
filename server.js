@@ -232,7 +232,10 @@ app.get('/api/stats', async (req, res) => {
     const [codeRows, taskRows, memberRows, recordRows, taskStats] = await Promise.all([
       query('SELECT COUNT(*) as count FROM base_codeinfo'),
       query(`SELECT COUNT(*) as count FROM code_task_log WHERE 1=1 ${taskDateWhere}`, tp),
-      query('SELECT COUNT(*) as count FROM base_auth_msg'),
+      // 参与人数：与「总记录提交 TOP20（base_table_data 枢纽）」同口径——
+      // 统计实际有提交记录的去重记录人（经 norm() 归一化），并随日期切片联动。
+      query(`SELECT COUNT(DISTINCT ${norm('记录人')}) as count FROM base_table_data
+             WHERE 记录人 IS NOT NULL AND ${norm('记录人')} != '' ${dateWhere}`, dp),
       query(`SELECT COUNT(*) as count FROM base_table_data WHERE 1=1 ${dateWhere}`, dp),
       query(`
         SELECT 
