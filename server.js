@@ -222,10 +222,16 @@ app.get('/api/stats', async (req, res) => {
     if (req.query.startDate) { dateWhere += ' AND 记录时间 >= ?'; dp.push(req.query.startDate); }
     if (req.query.endDate) { dateWhere += ' AND 记录时间 <= ?'; dp.push(endVal(req.query.endDate)); }
 
+    // 任务表时间切片（code_task_log 用 开始时间 字段）
+    const tp = [];
+    let taskDateWhere = '';
+    if (req.query.startDate) { taskDateWhere += ' AND 开始时间 >= ?'; tp.push(req.query.startDate); }
+    if (req.query.endDate) { taskDateWhere += ' AND 开始时间 <= ?'; tp.push(endVal(req.query.endDate)); }
+
     // 独立 COUNT/聚合并行执行，避免跨国 RTT 叠加（首次查询约 2.5s → 1s 内）
     const [codeRows, taskRows, memberRows, recordRows, taskStats] = await Promise.all([
       query('SELECT COUNT(*) as count FROM base_codeinfo'),
-      query('SELECT COUNT(*) as count FROM code_task_log'),
+      query(`SELECT COUNT(*) as count FROM code_task_log WHERE 1=1 ${taskDateWhere}`, tp),
       query('SELECT COUNT(*) as count FROM base_auth_msg'),
       query(`SELECT COUNT(*) as count FROM base_table_data WHERE 1=1 ${dateWhere}`, dp),
       query(`
@@ -233,7 +239,8 @@ app.get('/api/stats', async (req, res) => {
           SUM(CASE WHEN 状态 = '完成' THEN 1 ELSE 0 END) as completed,
           COUNT(*) as total
         FROM code_task_log
-      `)
+        WHERE 1=1 ${taskDateWhere}
+      `, tp)
     ]);
     const codeCount = codeRows[0];
     const taskCount = taskRows[0];
