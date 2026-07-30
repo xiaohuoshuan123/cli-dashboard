@@ -250,7 +250,13 @@ tr:hover { background: #f8fafc; }
 .badge-purple { background: #ede9fe; color: #5b21b6; }
 .badge-cyan { background: #cffafe; color: #155e75; }
 /* 急救药箱药品标签 */
-.med-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 药品明细：固定每行 4 个，8 种药品正好两行对称 */
+.med-wrap {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(78px, 1fr));
+  gap: 6px;
+}
+@media (max-width: 900px) { .med-wrap { grid-template-columns: repeat(2, minmax(78px, 1fr)); } }
 .med-chip {
   display: inline-block;
   min-width: 78px;
@@ -262,6 +268,15 @@ tr:hover { background: #f8fafc; }
   border: 1px solid transparent;
 }
 .med-chip small { font-size: 10px; opacity: 0.85; }
+/* 表格底部汇总行 */
+tfoot td {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: var(--text);
+  border-top: 2px solid var(--border);
+  position: sticky;
+  bottom: 0;
+}
 .med-red { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 .med-yellow { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .med-green { background: #dcfce7; color: #166534; border-color: #86efac; }
@@ -630,7 +645,7 @@ tr:hover { background: #f8fafc; }
         </select>
       </div>
       <div class="card" style="margin-bottom:12px;">
-        <div class="chart-container chart-h200">
+        <div class="chart-container chart-h250">
           <canvas id="scrapChart"></canvas>
         </div>
       </div>
@@ -855,6 +870,7 @@ tr:hover { background: #f8fafc; }
               <tr><th>计划名称</th><th>涉及模板</th><th>所属目录</th><th>总数</th><th>完成</th><th>超期完成</th><th>超期未完成</th><th>未完成</th><th>完成率</th></tr>
             </thead>
             <tbody id="taskDetailTable"></tbody>
+            <tfoot id="taskDetailFoot"></tfoot>
           </table>
         </div>
       </div>
