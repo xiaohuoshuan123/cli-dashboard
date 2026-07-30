@@ -892,14 +892,17 @@ app.get('/api/records/latest', async (req, res) => {
 // 统一归并到相同设备维度，便于"按设备类型总览"跨三张表聚合。
 function deviceKey(name) {
   if (!name) return '其他';
+  // 注意顺序：先判"气瓶"再判"灭火器"——"气体灭火器系统储气瓶"目录同时含两词，
+  // 若先判灭火器会把 67 个储气瓶码误并入灭火器（600 vs d10 的 533 口径差异根因）。
+  if (name.includes('气瓶')) return '气瓶';
   if (name.includes('灭火器')) return '灭火器';
   if (name.includes('应急灯')) return '应急灯';
   if (name.includes('洗眼')) return '洗眼器';
   if (name.includes('急救')) return '急救药箱';
   if (name.includes('压力表')) return '压力表';
-  if (name.includes('气瓶')) return '气瓶';
   if (name.includes('喷淋')) return '喷淋泵';
   if (name.includes('应急物资')) return '应急物资';
+  if (name.includes('环保') || name.includes('排放')) return '环保公示';
   return '其他';
 }
 
