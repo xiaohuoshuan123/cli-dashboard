@@ -488,20 +488,25 @@ async function loadFireMaintenance() {
   
   // 图表
   destroyChart('maintenance');
+  const maintValues = Object.values(deptCount);
   charts.maintenance = new Chart(document.getElementById('maintenanceChart'), {
     type: 'bar',
     data: {
       labels: Object.keys(deptCount),
       datasets: [{
         label: '需维修数量',
-        data: Object.values(deptCount),
-        backgroundColor: '#ef4444'
+        data: maintValues,
+        backgroundColor: '#ef4444',
+        maxBarThickness: 90
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      // 顶部留白，保证最高柱的数值不被上边缘裁切
+      layout: { padding: { top: 26 } },
       plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
+      // 整数刻度 + 无 Y 轴网格线
+      scales: { y: countAxis(maintValues), x: { grid: { display: false } } }
     }
   });
   
@@ -524,29 +529,8 @@ async function loadFireMaintenance() {
   }).join('');
 }
 
-// 柱状图顶部数值标签插件（Chart.js 内联插件，无需额外 CDN）
-// 配合 layout.padding.top + suggestedMax 留白，避免数值被图表上边缘裁切
-const barValueLabelPlugin = {
-  id: 'barValueLabel',
-  afterDatasetsDraw(chart) {
-    const { ctx } = chart;
-    ctx.save();
-    ctx.font = '600 12px -apple-system, "Segoe UI", sans-serif';
-    ctx.fillStyle = '#475569';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    chart.data.datasets.forEach((ds, di) => {
-      const meta = chart.getDatasetMeta(di);
-      if (meta.hidden) return;
-      meta.data.forEach((bar, i) => {
-        const v = ds.data[i];
-        if (v === null || v === undefined || v === 0) return;
-        ctx.fillText(String(v), bar.x, bar.y - 4);
-      });
-    });
-    ctx.restore();
-  }
-};
+// 注：柱顶数值由 core.js 全局注册的 barLabelPlugin 统一绘制，
+// 此处不得再挂内联数值插件（曾因重复挂载导致柱顶出现两个重叠数字）。
 
 // ========== 灭火器强制报废预警 ==========
 async function loadFireScrap() {
@@ -561,7 +545,6 @@ async function loadFireScrap() {
 
   destroyChart('scrap');
   const scrapValues = Object.values(deptCount);
-  const scrapMax = scrapValues.length ? Math.max(...scrapValues) : 0;
   charts.scrap = new Chart(document.getElementById('scrapChart'), {
     type: 'bar',
     data: {
@@ -576,18 +559,11 @@ async function loadFireScrap() {
     options: {
       responsive: true, maintainAspectRatio: false,
       // 顶部留白，保证柱顶数值与最高刻度不被裁切
-      layout: { padding: { top: 24 } },
+      layout: { padding: { top: 26 } },
       plugins: { legend: { display: false } },
-      scales: {
-        y: {
-          beginAtZero: true,
-          // 数量必为整数：禁止 0.2/0.4 这类小数刻度；并向上多留 1 格空间
-          suggestedMax: scrapMax + Math.max(1, Math.ceil(scrapMax * 0.15)),
-          ticks: { precision: 0, stepSize: scrapMax <= 5 ? 1 : undefined }
-        }
-      }
-    },
-    plugins: [barValueLabelPlugin]
+      // 整数刻度 + 无 Y 轴网格线（countAxis 统一定义）
+      scales: { y: countAxis(scrapValues), x: { grid: { display: false } } }
+    }
   });
 
   document.getElementById('scrapTable').innerHTML = data.length > 0 ? data.map(m => {
@@ -682,6 +658,8 @@ function renderFireAnalysis() {
   const data = sorted.map(s => s[1]);
   const useDoughnut = labels.length <= 6;
   destroyChart('fireAnalysis');
+  // 分类多时按数量撑高容器，避免 Y 轴标签被压缩显示不全
+  fitChartHeight('fireAnalysisChart', labels.length, useDoughnut);
   charts.fireAnalysis = new Chart(document.getElementById('fireAnalysisChart'), {
     type: useDoughnut ? 'doughnut' : 'bar',
     data: { labels, datasets: [{ data, backgroundColor: colors }] },
@@ -693,8 +671,8 @@ function renderFireAnalysis() {
       },
       ...(useDoughnut ? {} : {
         indexAxis: 'y',
-        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 11 } } } },
-        layout: { padding: { left: 8 } }
+        scales: hBarScales(11),
+        layout: { padding: { left: 8, right: 34 } }
       })
     }
   });
@@ -752,6 +730,7 @@ function renderLightAnalysis() {
   const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16','#a855f7','#14b8a6'];
   const useDoughnut = labels.length <= 6;
   destroyChart('lightAnalysis');
+  fitChartHeight('lightAnalysisChart', labels.length, useDoughnut);
   charts.lightAnalysis = new Chart(document.getElementById('lightAnalysisChart'), {
     type: useDoughnut ? 'doughnut' : 'bar',
     data: { labels, datasets: [{ label: '数量', data, backgroundColor: palette }] },
@@ -760,8 +739,8 @@ function renderLightAnalysis() {
       plugins: { legend: { display: useDoughnut, position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } },
       ...(useDoughnut ? {} : {
         indexAxis: 'y',
-        layout: { padding: { left: 8 } },
-        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 10 } } } }
+        layout: { padding: { left: 8, right: 34 } },
+        scales: hBarScales(11)
       })
     }
   });
@@ -853,6 +832,7 @@ function renderPressureAnalysis() {
   const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16'];
   const useDoughnut = labels.length <= 6;
   destroyChart('pressureAnalysis');
+  fitChartHeight('pressureAnalysisChart', labels.length, useDoughnut);
   charts.pressureAnalysis = new Chart(document.getElementById('pressureAnalysisChart'), {
     type: useDoughnut ? 'doughnut' : 'bar',
     data: { labels, datasets: [{ label: '数量', data, backgroundColor: palette }] },
@@ -861,8 +841,8 @@ function renderPressureAnalysis() {
       plugins: { legend: { display: useDoughnut, position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } },
       ...(useDoughnut ? {} : {
         indexAxis: 'y',
-        layout: { padding: { left: 8 } },
-        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 10 } } } }
+        layout: { padding: { left: 8, right: 34 } },
+        scales: hBarScales(11)
       })
     }
   });
@@ -964,6 +944,7 @@ function renderCylinderAnalysis() {
   const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#94a3b8','#84cc16','#a855f7','#14b8a6'];
   const useDoughnut = labels.length <= 6;
   destroyChart('cylinderAnalysis');
+  fitChartHeight('cylinderAnalysisChart', labels.length, useDoughnut);
   charts.cylinderAnalysis = new Chart(document.getElementById('cylinderAnalysisChart'), {
     type: useDoughnut ? 'doughnut' : 'bar',
     data: { labels, datasets: [{ label: '数量', data, backgroundColor: palette }] },
@@ -972,8 +953,8 @@ function renderCylinderAnalysis() {
       plugins: { legend: { display: useDoughnut, position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } },
       ...(useDoughnut ? {} : {
         indexAxis: 'y',
-        layout: { padding: { left: 8 } },
-        scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { ticks: { font: { size: 10 } } } }
+        layout: { padding: { left: 8, right: 34 } },
+        scales: hBarScales(11)
       })
     }
   });
