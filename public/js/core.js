@@ -55,6 +55,8 @@ Chart.register(pieLabelPlugin);
 
 // ========== 柱状图数值标签插件（离线安全，不依赖 CDN）==========
 // 在每根柱子顶部居中显示其数值，满足"柱状分析图要体现数值"的需求。
+// ⚠️ 本插件已全局注册（Chart.register），任何柱状图都会自动带数值标签。
+// 严禁再给单个图表传 plugins:[另一个数值插件]，否则会画出两份数值互相重叠。
 const barLabelPlugin = {
   id: 'barValues',
   afterDatasetsDraw(chart) {
@@ -62,22 +64,59 @@ const barLabelPlugin = {
     const meta = chart.getDatasetMeta(0);
     if (!meta || !meta.data || !meta.data.length) return;
     const data = chart.data.datasets[0].data;
+    const horizontal = chart.options && chart.options.indexAxis === 'y';
     const ctx = chart.ctx;
     ctx.save();
     ctx.font = '600 11px sans-serif';
     ctx.fillStyle = '#334155';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
+    ctx.textAlign = horizontal ? 'left' : 'center';
+    ctx.textBaseline = horizontal ? 'middle' : 'bottom';
     meta.data.forEach((bar, i) => {
       const v = data[i];
       if (v === null || v === undefined) return;
       const text = (typeof formatNumber === 'function') ? formatNumber(v) : String(v);
-      ctx.fillText(text, bar.x, bar.y - 3);
+      if (horizontal) ctx.fillText(text, bar.x + 5, bar.y);
+      else ctx.fillText(text, bar.x, bar.y - 3);
     });
     ctx.restore();
   }
 };
 Chart.register(barLabelPlugin);
+
+// ========== 图表通用配置助手 ==========
+// 纵向柱状图的"数量轴"标准配置：整数刻度 + 顶部留白 + 无网格线。
+// 用途：数量类柱状图（预警统计等）避免出现 0.2/0.4 小数刻度、柱顶数值被裁切。
+function countAxis(values) {
+  const nums = (values || []).map(v => Number(v) || 0);
+  const max = nums.length ? Math.max(...nums) : 0;
+  return {
+    beginAtZero: true,
+    suggestedMax: max + Math.max(1, Math.ceil(max * 0.2)),
+    grid: { display: false },
+    border: { display: true },
+    ticks: { precision: 0, stepSize: max <= 5 ? 1 : undefined }
+  };
+}
+
+// 横向条形图（indexAxis:'y'）通用 scales：两轴均无网格线，右侧留白放数值
+function hBarScales(fontSize) {
+  return {
+    x: { beginAtZero: true, grid: { display: false }, ticks: { precision: 0 } },
+    y: { grid: { display: false }, ticks: { font: { size: fontSize || 11 }, autoSkip: false } }
+  };
+}
+
+// 根据分类数量自动调整图表容器高度，避免横向条形图 Y 轴标签被压缩/截断
+// useDoughnut=true 时清除内联高度，回落到 CSS 类定义的固定高度
+function fitChartHeight(canvasId, categoryCount, useDoughnut) {
+  const cv = document.getElementById(canvasId);
+  if (!cv) return;
+  const box = cv.closest('.chart-container');
+  if (!box) return;
+  if (useDoughnut) { box.style.height = ''; return; }
+  // 每个分类至少 30px 行高，另加上下 70px 边距；最低仍保持 300px
+  box.style.height = Math.max(300, categoryCount * 30 + 70) + 'px';
+}
 
 // ========== 访问令牌 / 登录弹窗 ==========
 // 令牌保存在 sessionStorage（关闭标签页即失效），避免明文暴露在 URL 中。
