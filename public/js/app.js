@@ -4,6 +4,7 @@ async function loadAllData() {
   await loadHealth();
   const tasks = [
     loadStats(),
+    loadCodeByDevice(),
     loadAlerts(),
     loadMonthlyTrend(),
     loadFormDist(),
