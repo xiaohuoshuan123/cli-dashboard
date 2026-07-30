@@ -51,7 +51,7 @@ async function loadStats() {
       <div class="label">参与人数</div>
     </div>
     <div class="stat-card fade-in">
-      <div class="number">${stats.timeRange ? Math.ceil((new Date(stats.timeRange.latest) - new Date(stats.timeRange.earliest)) / 86400000) : '--'}</div>
+      <div class="number">${stats.timeRange ? Math.floor((new Date(stats.timeRange.latest) - new Date(stats.timeRange.earliest)) / 86400000) + 1 : '--'}</div>
       <div class="label">覆盖天数</div>
     </div>
   `;
