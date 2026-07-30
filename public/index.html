@@ -487,6 +487,20 @@ tr:hover { background: #f8fafc; }
     <div class="loading">加载中</div>
   </div>
 
+  <!-- 设备二维码分布 -->
+  <div class="section">
+    <div class="section-title">
+      📦 设备二维码分布（来源：base_codeinfo）
+      <button class="toggle-btn" onclick="toggleSection('codeByDevice')">收起</button>
+    </div>
+    <div class="section-content" id="codeByDevice">
+      <div class="card">
+        <div class="card-title">各设备二维码数量（合计 <span id="codeByDeviceTotal">--</span> · 与上方"二维码总数"同源）</div>
+        <div class="stats-row" id="codeByDeviceCards"><div class="loading">加载中</div></div>
+      </div>
+    </div>
+  </div>
+
   <!-- 告警/提示 -->
   <div id="alertsContainer"></div>
 
