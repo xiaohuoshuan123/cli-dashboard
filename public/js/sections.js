@@ -382,6 +382,35 @@ async function loadTaskDetails() {
       </tr>
     `;
   }).join('');
+
+  // 底部汇总行：各列合计 + 总体完成率（口径与行内一致，仅计"完成"，不含超期完成）
+  const sum = k => tasks.reduce((s, t) => s + Number(t[k] || 0), 0);
+  const tTotal = sum('total');
+  const tCompleted = sum('completed');
+  const tOverdueC = sum('overdue_complete');
+  const tOverdueI = sum('overdue_incomplete');
+  const tIncomplete = sum('incomplete');
+  const tRate = tTotal > 0 ? ((tCompleted / tTotal) * 100).toFixed(1) : '0.0';
+  const foot = document.getElementById('taskDetailFoot');
+  if (foot) {
+    foot.innerHTML = `
+      <tr>
+        <td>合计（${tasks.length} 个计划）</td>
+        <td>—</td>
+        <td>—</td>
+        <td>${formatNumber(tTotal)}</td>
+        <td>${formatNumber(tCompleted)}</td>
+        <td>${formatNumber(tOverdueC)}</td>
+        <td>${formatNumber(tOverdueI)}</td>
+        <td>${formatNumber(tIncomplete)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="progress-bar" style="width:100px;"><div class="fill" style="width:${tRate}%"></div></div>
+            <span style="font-weight:700;">${tRate}%</span>
+          </div>
+        </td>
+      </tr>`;
+  }
 }
 
 // ========== 最新记录 ==========
@@ -495,6 +524,30 @@ async function loadFireMaintenance() {
   }).join('');
 }
 
+// 柱状图顶部数值标签插件（Chart.js 内联插件，无需额外 CDN）
+// 配合 layout.padding.top + suggestedMax 留白，避免数值被图表上边缘裁切
+const barValueLabelPlugin = {
+  id: 'barValueLabel',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.save();
+    ctx.font = '600 12px -apple-system, "Segoe UI", sans-serif';
+    ctx.fillStyle = '#475569';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    chart.data.datasets.forEach((ds, di) => {
+      const meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, i) => {
+        const v = ds.data[i];
+        if (v === null || v === undefined || v === 0) return;
+        ctx.fillText(String(v), bar.x, bar.y - 4);
+      });
+    });
+    ctx.restore();
+  }
+};
+
 // ========== 灭火器强制报废预警 ==========
 async function loadFireScrap() {
   const days = document.getElementById('scrapDays').value;
@@ -507,21 +560,34 @@ async function loadFireScrap() {
   });
 
   destroyChart('scrap');
+  const scrapValues = Object.values(deptCount);
+  const scrapMax = scrapValues.length ? Math.max(...scrapValues) : 0;
   charts.scrap = new Chart(document.getElementById('scrapChart'), {
     type: 'bar',
     data: {
       labels: Object.keys(deptCount),
       datasets: [{
         label: '将强制报废数量',
-        data: Object.values(deptCount),
-        backgroundColor: '#8b5cf6'
+        data: scrapValues,
+        backgroundColor: '#8b5cf6',
+        maxBarThickness: 90
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      // 顶部留白，保证柱顶数值与最高刻度不被裁切
+      layout: { padding: { top: 24 } },
       plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
-    }
+      scales: {
+        y: {
+          beginAtZero: true,
+          // 数量必为整数：禁止 0.2/0.4 这类小数刻度；并向上多留 1 格空间
+          suggestedMax: scrapMax + Math.max(1, Math.ceil(scrapMax * 0.15)),
+          ticks: { precision: 0, stepSize: scrapMax <= 5 ? 1 : undefined }
+        }
+      }
+    },
+    plugins: [barValueLabelPlugin]
   });
 
   document.getElementById('scrapTable').innerHTML = data.length > 0 ? data.map(m => {
