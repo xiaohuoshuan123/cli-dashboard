@@ -246,8 +246,9 @@ app.get('/api/stats', async (req, res) => {
     const taskCount = taskRows[0];
     const memberCount = memberRows[0];
     const recordCount = recordRows[0];
-    const completionRate = taskStats.total > 0 
-      ? ((taskStats.completed / taskStats.total) * 100).toFixed(1) 
+    const ts = taskStats[0] || { completed: 0, total: 0 };
+    const completionRate = ts.total > 0 
+      ? ((ts.completed / ts.total) * 100).toFixed(1) 
       : 0;
 
     // 时间范围：给定起止用给定值，否则用实际 MIN/MAX
@@ -270,6 +271,21 @@ app.get('/api/stats', async (req, res) => {
   } catch (err) {
     sendError(res, err);
   }
+});
+
+// 设备二维码分布（来源：base_codeinfo 主表，按 目录 归并到设备维度）
+// 与顶部 "二维码总数" 同源（均来自 base_codeinfo），各设备 count 之和等于总数。
+app.get('/api/code-by-device', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT 目录, COUNT(*) as c FROM base_codeinfo WHERE 目录 IS NOT NULL AND 目录 != '' GROUP BY 目录`);
+    const map = {};
+    rows.forEach(r => { const k = deviceKey(r.目录); map[k] = (map[k] || 0) + Number(r.c); });
+    const list = Object.entries(map).map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+    const total = list.reduce((s, e) => s + e.count, 0);
+    res.json({ total, list });
+  } catch (err) { sendError(res, err); }
 });
 
 // 月度趋势（支持日期范围）
