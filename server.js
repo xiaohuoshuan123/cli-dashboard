@@ -772,9 +772,9 @@ app.get('/api/tasks/details', async (req, res) => {
         b.模板名称 as tpl,
         COUNT(*) as cnt,
         SUM(CASE WHEN t.状态 = '完成' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN t.状态 = '超期完成' THEN 1 ELSE 0 END) as overdue_complete,
         SUM(CASE WHEN t.状态 = '超期未完成' THEN 1 ELSE 0 END) as overdue_incomplete,
-        SUM(CASE WHEN t.状态 = '未完成' THEN 1 ELSE 0 END) as incomplete,
-        SUM(CASE WHEN t.状态 = '超期完成' THEN 1 ELSE 0 END) as overdue_complete
+        SUM(CASE WHEN t.状态 = '未完成' OR t.状态 = '即将超期' OR t.状态 IS NULL OR t.状态 = '' THEN 1 ELSE 0 END) as incomplete
       FROM code_task_log t
       LEFT JOIN base_codeinfo b ON t.code_id = b.code_id
       WHERE 1=1
@@ -1206,28 +1206,6 @@ if (_missing.length) {
   console.error('❌ 启动失败：缺少必需的环境变量 -> ' + _missing.join(', ') + '。请在 Railway Variables 中配置后再启动。');
   process.exit(1);
 }
-
-// [TEMP DEBUG] 查 code_task_log 原始状态枚举（验证计划执行明细未完成口径，查完即删）
-app.get('/api/debug/task-raw-status', async (req, res) => {
-  try {
-    const s = req.query.startDate || '2026-08-01';
-    const e = req.query.endDate || '2026-08-31';
-    const rows = await query(`
-      SELECT 计划名称 as name,
-             CASE WHEN 状态 IS NULL THEN '(NULL)'
-                  WHEN 状态 = '' THEN '(EMPTY)'
-                  ELSE 状态 END as status,
-             COUNT(*) as c
-      FROM code_task_log
-      WHERE 开始时间 >= ? AND 开始时间 <= ?
-      GROUP BY 计划名称, 状态
-      ORDER BY 计划名称, c DESC
-    `, [s, e]);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // 启动服务器
 const PORT = process.env.PORT || 3000;
