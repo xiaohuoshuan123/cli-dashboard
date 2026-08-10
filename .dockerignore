@@ -1,0 +1,11 @@
+node_modules
+.git
+.workbuddy
+*.log
+.env
+.env.example
+CREDENTIALS.md
+docs
+scripts
+npm-debug.log
+.DS_Store
