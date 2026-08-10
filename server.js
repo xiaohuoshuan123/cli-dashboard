@@ -842,6 +842,7 @@ app.get('/api/tasks/pending-devices', async (req, res) => {
     let dateSql = '';
     if (req.query.startDate) { dateSql += ' AND t.开始时间 >= ?'; params.push(req.query.startDate); }
     if (req.query.endDate) { dateSql += ' AND t.开始时间 <= ?'; params.push(endVal(req.query.endDate)); }
+    if (req.query.planName) { dateSql += ' AND t.计划名称 = ?'; params.push(req.query.planName); }
 
     const sql = [
       'SELECT',
@@ -871,6 +872,23 @@ app.get('/api/tasks/pending-devices', async (req, res) => {
 
     const rows = await query(sql, params);
     res.json(rows);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+// 未完成设备清单的「计划名称」下拉数据源（随日期范围联动，不含空值）
+app.get('/api/tasks/plan-names', async (req, res) => {
+  try {
+    const params = [];
+    let dateSql = '';
+    if (req.query.startDate) { dateSql += ' AND 开始时间 >= ?'; params.push(req.query.startDate); }
+    if (req.query.endDate) { dateSql += ' AND 开始时间 <= ?'; params.push(endVal(req.query.endDate)); }
+    const rows = await query(
+      `SELECT DISTINCT 计划名称 AS plan_name FROM code_task_log WHERE 计划名称 IS NOT NULL AND 计划名称 != '' ${dateSql} ORDER BY 计划名称`,
+      params
+    );
+    res.json(rows.map(r => r.plan_name));
   } catch (err) {
     sendError(res, err);
   }
