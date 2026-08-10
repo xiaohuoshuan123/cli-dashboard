@@ -92,10 +92,10 @@ const $ = id => document.getElementById(id);
 function log(m){ const el=$('log'); el.textContent += m+'\n'; el.scrollTop=el.scrollHeight; }
 function clearT(){ try{ performance.clearResourceTimings(); }catch(e){} }
 
-async function measure(rawUrl){
+async function measure(rawUrl, signal){
   const url = rawUrl + (rawUrl.includes('?')?'&':'?') + '_c=' + Date.now();
   const t0 = performance.now();
-  const resp = await fetch(url, {cache:'no-store', mode:'cors'});
+  const resp = await fetch(url, {cache:'no-store', mode:'cors', signal});
   await resp.text();
   const t1 = performance.now();
   const entries = performance.getEntriesByName(url);
@@ -107,14 +107,21 @@ async function measure(rawUrl){
 
 async function roundtrip(name, url){
   log('→ '+name+'  '+url.replace(/\?.*/,'')+(url.includes('token=')?'?token=***':''));
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 90000);
   try{
     clearT();
-    const r = await measure(url);
+    const r = await measure(url, ctrl.signal);
+    clearTimeout(timer);
     const fmt = v => v>0 ? v.toFixed(0)+'ms' : '—';
     log('   code='+r.code+'  connect='+fmt(r.connect)+'  ttfb='+fmt(r.ttfb)+'  total='+r.total.toFixed(0)+'ms');
     return {...r, ok:true};
   }catch(err){
-    log('   ❌ 失败：'+err.message);
+    clearTimeout(timer);
+    let reason;
+    if(err && err.name === 'AbortError') reason = '请求超时(90s，可能实例冷启动或网络慢，请稍候重试)';
+    else reason = (err && (err.message || err.name)) || '网络错误';
+    log('   ❌ 失败：'+reason);
     return {code:0, connect:0, ttfb:0, total:0, ok:false};
   }
 }
