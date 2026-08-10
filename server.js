@@ -1207,6 +1207,29 @@ if (_missing.length) {
   process.exit(1);
 }
 
+// [TEMP DEBUG] 枚举模板表与字段、base_codeinfo 目录/模板名称分布（查完即删）
+app.get('/api/debug/tpl-map', async (req, res) => {
+  try {
+    const tables = await query(
+      `SELECT TABLE_NAME as t FROM information_schema.tables WHERE table_schema = ? AND TABLE_NAME LIKE 'template_codeinfo_%' ORDER BY TABLE_NAME`,
+      [dbConfig.database], 0);
+    const out = [];
+    for (const { t } of tables) {
+      const cols = await query(
+        `SELECT COLUMN_NAME as c FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ORDINAL_POSITION`,
+        [dbConfig.database, t], 0);
+      const colNames = cols.map(r => r.c);
+      const hit = colNames.filter(c => /编号|位置|责任部门|点检人|码名称|名称|状态/.test(c));
+      out.push({ table: t, cols: hit });
+    }
+    const dirs = await query(
+      `SELECT 目录, 模板名称, COUNT(*) as c FROM base_codeinfo WHERE 目录 IS NOT NULL AND 目录 != '' GROUP BY 目录, 模板名称 ORDER BY c DESC`, [], 0);
+    res.json({ tables: out, baseDirs: dirs });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 // 启动服务器
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
