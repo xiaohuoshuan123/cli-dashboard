@@ -5,7 +5,7 @@ services:
     name: cli-dashboard
     runtime: node
     plan: free            # 免费层 750h/月；长时间无访问会冷启动 30-50s
-    region: oregon        # 海外区域；若重视国内速度改 singapore（仍偏慢）
+    region: singapore     # 海外区域中离国内最近；跨地域握手仍慢(已知)，但优于 oregon
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
