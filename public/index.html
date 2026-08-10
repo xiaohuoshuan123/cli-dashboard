@@ -201,6 +201,18 @@ body {
   transition: background .15s;
 }
 .btn-export:hover { background: #1d4ed8; }
+.btn-reset {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-reset:hover { background: #e2e8f0; }
 .chart-container { position: relative; width: 100%; }
 .chart-h200 { height: 200px; }
 .chart-h250 { height: 250px; }
@@ -877,10 +889,15 @@ tfoot td {
 
       <!-- 未完成任务设备清单 -->
       <div class="card" style="margin-top:16px;">
-        <div class="card-title" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;">📋 未完成任务设备清单（可直接导出后发邮件提醒责任人）</div>
-        <div class="tb-bar">
-          <button class="btn-export" onclick="showPendingDevices()">🔍 查看 / 导出未完成任务设备</button>
-          <span id="pendingCount" style="font-size:12px;color:var(--text2);margin-left:8px;"></span>
+        <div class="card-title" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;">📋 未完成任务设备清单（可按计划名称筛选后单独导出，发邮件提醒责任人）</div>
+        <div class="tb-bar" style="flex-wrap:wrap;gap:8px;">
+          <label style="font-size:12px;color:var(--text2);">按计划名称筛选：</label>
+          <select id="pendingPlanFilter" class="pending-select" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;max-width:240px;">
+            <option value="">全部计划</option>
+          </select>
+          <button class="btn-export" onclick="showPendingDevices()">🔍 查询</button>
+          <button class="btn-reset" onclick="resetPendingFilter()">↺ 重置</button>
+          <span id="pendingCount" style="font-size:12px;color:var(--text2);margin-left:4px;"></span>
         </div>
         <div id="pendingDevicesBox"></div>
       </div>
