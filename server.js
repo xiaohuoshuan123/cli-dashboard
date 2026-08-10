@@ -1207,7 +1207,7 @@ if (_missing.length) {
   process.exit(1);
 }
 
-// [TEMP DEBUG] 枚举模板表与字段、base_codeinfo 目录/模板名称分布（查完即删）
+// [TEMP DEBUG] 枚举模板表全部列 + 样本行 + base_codeinfo 列（查完即删）
 app.get('/api/debug/tpl-map', async (req, res) => {
   try {
     const tables = await query(
@@ -1219,12 +1219,14 @@ app.get('/api/debug/tpl-map', async (req, res) => {
         `SELECT COLUMN_NAME as c FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ORDINAL_POSITION`,
         [dbConfig.database, t], 0);
       const colNames = cols.map(r => r.c);
-      const hit = colNames.filter(c => /编号|位置|责任部门|点检人|码名称|名称|状态/.test(c));
-      out.push({ table: t, cols: hit });
+      const sample = await query(`SELECT * FROM \`${t}\` LIMIT 1`, [], 0);
+      out.push({ table: t, allCols: colNames, sample: sample[0] || null });
     }
-    const dirs = await query(
-      `SELECT 目录, 模板名称, COUNT(*) as c FROM base_codeinfo WHERE 目录 IS NOT NULL AND 目录 != '' GROUP BY 目录, 模板名称 ORDER BY c DESC`, [], 0);
-    res.json({ tables: out, baseDirs: dirs });
+    const baseCols = await query(
+      `SELECT COLUMN_NAME as c FROM information_schema.columns WHERE table_schema = ? AND table_name = 'base_codeinfo' ORDER BY ORDINAL_POSITION`,
+      [dbConfig.database], 0);
+    const baseSample = await query(`SELECT * FROM base_codeinfo LIMIT 1`, [], 0);
+    res.json({ tables: out, baseCols: baseCols.map(r => r.c), baseSample: baseSample[0] || null });
   } catch (err) {
     sendError(res, err);
   }
