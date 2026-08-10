@@ -874,6 +874,16 @@ tfoot td {
           </table>
         </div>
       </div>
+
+      <!-- 未完成任务设备清单 -->
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;">📋 未完成任务设备清单（可直接导出后发邮件提醒责任人）</div>
+        <div class="tb-bar">
+          <button class="btn-export" onclick="showPendingDevices()">🔍 查看 / 导出未完成任务设备</button>
+          <span id="pendingCount" style="font-size:12px;color:var(--text2);margin-left:8px;"></span>
+        </div>
+        <div id="pendingDevicesBox"></div>
+      </div>
     </div>
   </div>
 
