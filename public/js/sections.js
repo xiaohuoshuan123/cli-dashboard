@@ -1038,3 +1038,79 @@ function renderExpiryTable(containerId, rows, columns, dateCol) {
     `<table><thead>${head}</thead><tbody>${body || `<tr><td colspan="${cols.length}" style="text-align:center;color:#94a3b8;">无即将到期/已逾期的设备</td></tr>`}</tbody></table>`;
 }
 
+// ========== 未完成任务设备清单（计划执行明细下方按钮）==========
+// 拉取「状态 != 完成」的全部周期任务，并展示设备主数据（编号/位置/责任部门/点检人/任务结束日期），供导出后邮件提醒。
+const PENDING_COLS = [
+  { key: 'plan_name', label: '计划名称' },
+  { key: 'device_type', label: '设备类型' },
+  { key: 'device_code', label: '设备编号' },
+  { key: 'code_name', label: '设备名称' },
+  { key: 'location', label: '位置' },
+  { key: 'dept', label: '责任部门' },
+  { key: 'inspector', label: '点检人/负责人' },
+  { key: 'status', label: '任务状态' },
+  { key: 'start_time', label: '任务开始日期' },
+  { key: 'end_time', label: '任务结束日期' }
+];
+
+function fmtDateOnly(v) {
+  if (v === null || v === undefined || v === '') return '-';
+  const s = String(v);
+  return s.length > 10 ? s.slice(0, 10) : s;
+}
+
+function buildPendingTableHtml(rows) {
+  const head = '<tr>' + PENDING_COLS.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+  const body = rows.map(r => '<tr>' + PENDING_COLS.map(c => {
+    let val = r[c.key];
+    if (c.key === 'start_time' || c.key === 'end_time') val = fmtDateOnly(val);
+    else val = (val === null || val === undefined || val === '') ? '-' : val;
+    return `<td>${escapeHtml(val)}</td>`;
+  }).join('') + '</tr>').join('');
+  return `<table border="1"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+let _pendingRows = [];
+
+async function showPendingDevices() {
+  const box = document.getElementById('pendingDevicesBox');
+  const countEl = document.getElementById('pendingCount');
+  if (!box) return;
+  const params = new URLSearchParams();
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  if (s) params.set('startDate', s);
+  if (e) params.set('endDate', e);
+
+  box.innerHTML = '<div style="padding:12px;color:var(--text2);">加载中…</div>';
+  if (countEl) countEl.textContent = '';
+
+  let rows;
+  try {
+    rows = await fetchAPI(`/tasks/pending-devices?${params}`);
+  } catch (err) {
+    box.innerHTML = '<div class="alert alert-warn">加载失败，请稍后重试</div>';
+    return;
+  }
+  _pendingRows = Array.isArray(rows) ? rows : [];
+
+  if (!_pendingRows.length) {
+    box.innerHTML = '<div style="padding:12px;color:var(--text2);">✅ 当前筛选范围内没有未完成的任务</div>';
+    if (countEl) countEl.textContent = '共 0 条';
+    return;
+  }
+  if (countEl) countEl.textContent = `共 ${_pendingRows.length} 条未完成任务`;
+  box.innerHTML = `
+    <div class="tb-bar" style="margin-top:10px;">
+      <button class="btn-export" onclick="exportPendingDevices()">📥 导出Excel（${_pendingRows.length} 条）</button>
+      <span style="font-size:12px;color:var(--text2);">含：设备编号 / 位置 / 责任部门 / 点检人 / 任务结束日期</span>
+    </div>
+    <div class="table-wrap">${buildPendingTableHtml(_pendingRows)}</div>`;
+}
+
+function exportPendingDevices() {
+  if (!_pendingRows.length) { alert('暂无可导出的数据'); return; }
+  const range = (document.getElementById('startDate').value || '') + '~' + (document.getElementById('endDate').value || '全部');
+  downloadExcelHtml(buildPendingTableHtml(_pendingRows), `未完成任务设备清单_${range}`);
+}
+
