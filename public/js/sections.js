@@ -1072,15 +1072,46 @@ function buildPendingTableHtml(rows) {
 
 let _pendingRows = [];
 
-async function showPendingDevices() {
-  const box = document.getElementById('pendingDevicesBox');
-  const countEl = document.getElementById('pendingCount');
-  if (!box) return;
+// 拉取「计划名称」下拉项（随日期范围联动），保留当前选中值
+async function populatePendingPlanFilter() {
+  const sel = document.getElementById('pendingPlanFilter');
+  if (!sel) return;
+  const cur = sel.value;
+  try {
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    const params = new URLSearchParams();
+    if (s) params.set('startDate', s);
+    if (e) params.set('endDate', e);
+    const names = await fetchAPI(`/tasks/plan-names?${params}`);
+    if (!Array.isArray(names)) return;
+    sel.innerHTML = '<option value="">全部计划</option>' +
+      names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    if (cur && names.includes(cur)) sel.value = cur; // 保留原选中（仍在列表内）
+  } catch (err) {
+    console.warn('计划名称下拉加载失败:', err); // 失败不影响主查询，保留「全部计划」
+  }
+}
+
+function _pendingDateParams() {
   const params = new URLSearchParams();
   const s = document.getElementById('startDate').value;
   const e = document.getElementById('endDate').value;
   if (s) params.set('startDate', s);
   if (e) params.set('endDate', e);
+  return params;
+}
+
+async function showPendingDevices() {
+  const box = document.getElementById('pendingDevicesBox');
+  const countEl = document.getElementById('pendingCount');
+  if (!box) return;
+  await populatePendingPlanFilter(); // 保持下拉与日期范围一致
+
+  const params = _pendingDateParams();
+  const planSel = document.getElementById('pendingPlanFilter');
+  const plan = planSel ? planSel.value : '';
+  if (plan) params.set('planName', plan);
 
   box.innerHTML = '<div style="padding:12px;color:var(--text2);">加载中…</div>';
   if (countEl) countEl.textContent = '';
@@ -1099,18 +1130,42 @@ async function showPendingDevices() {
     if (countEl) countEl.textContent = '共 0 条';
     return;
   }
-  if (countEl) countEl.textContent = `共 ${_pendingRows.length} 条未完成任务`;
+  const planLabel = plan ? `（计划：${plan}）` : '';
+  if (countEl) countEl.textContent = `共 ${_pendingRows.length} 条未完成任务${planLabel}`;
   box.innerHTML = `
-    <div class="tb-bar" style="margin-top:10px;">
-      <button class="btn-export" onclick="exportPendingDevices()">📥 导出Excel（${_pendingRows.length} 条）</button>
+    <div class="tb-bar" style="margin-top:10px;justify-content:flex-start;flex-wrap:wrap;gap:8px;">
+      <button class="btn-export" onclick="exportPendingDevices()">📥 导出当前筛选（${_pendingRows.length} 条）</button>
+      <button class="btn-export" onclick="exportPendingAll()">📥 导出全部计划</button>
       <span style="font-size:12px;color:var(--text2);">含：设备编号 / 位置 / 责任部门 / 点检人 / 任务结束日期</span>
     </div>
     <div class="table-wrap">${buildPendingTableHtml(_pendingRows)}</div>`;
 }
 
+function resetPendingFilter() {
+  const sel = document.getElementById('pendingPlanFilter');
+  if (sel) sel.value = '';
+  showPendingDevices();
+}
+
+// 导出「当前筛选结果」（与页面展示一致，含计划名称筛选）
 function exportPendingDevices() {
-  if (!_pendingRows.length) { alert('暂无可导出的数据'); return; }
+  if (!_pendingRows.length) { alert('暂无可导出的数据，请先点击「查询」'); return; }
+  const plan = (document.getElementById('pendingPlanFilter')?.value) || '全部计划';
   const range = (document.getElementById('startDate').value || '') + '~' + (document.getElementById('endDate').value || '全部');
-  downloadExcelHtml(buildPendingTableHtml(_pendingRows), `未完成任务设备清单_${range}`);
+  downloadExcelHtml(buildPendingTableHtml(_pendingRows), `未完成任务设备清单_${plan}_${range}`);
+}
+
+// 导出「全部计划」（忽略计划名称筛选，保留日期范围）
+async function exportPendingAll() {
+  const params = _pendingDateParams();
+  try {
+    const rows = await fetchAPI(`/tasks/pending-devices?${params}`);
+    const data = Array.isArray(rows) ? rows : [];
+    if (!data.length) { alert('暂无可导出的数据'); return; }
+    const range = (document.getElementById('startDate').value || '') + '~' + (document.getElementById('endDate').value || '全部');
+    downloadExcelHtml(buildPendingTableHtml(data), `未完成任务设备清单_全部计划_${range}`);
+  } catch (err) {
+    alert('导出全部失败，请稍后重试');
+  }
 }
 
