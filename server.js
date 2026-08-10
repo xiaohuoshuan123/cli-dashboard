@@ -185,14 +185,12 @@ function requireAuth(req, res, next) {
 app.use('/api', requireAuth);
 
 // 健康检查
-app.get('/api/health', async (req, res) => {
-  try {
-    await query('SELECT 1');
-    res.json({ status: 'ok' });
-  } catch (err) {
-    console.error('[HEALTH]', err && err.message);
-    res.status(503).json({ status: 'error' });
-  }
+// 轻量存活检查：只验证 Node 进程 + Express 在跑，**不查 DB**。
+// 理由：① Render 等平台高频健康检查若跨地域查库(海外→国内RDS)会因握手慢超时→误判重启；
+//       ② 避免前端「请求超时（/health）」误报（DB 慢不应让存活探针失败）。
+//       DB 连通与否由真实数据接口(/api/stats 等)的 504 反映，前端已有处理。
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', ts: Date.now() });
 });
 
 // 令牌校验（前端登录弹窗用）
