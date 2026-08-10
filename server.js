@@ -38,6 +38,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   connectTimeout: 8000,
+  acquireTimeout: 20000, // 拿不到连接时 20s 内快速失败，避免无限挂起（防御）
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000
 });
@@ -125,7 +126,7 @@ async function safeSelect(table, aliasMap, extra = '') {
 
 // ========== API 路由 ==========
 
-// 请求级超时保护：任何 API 最多 15 秒必须返回，避免 Railway 等环境连不上
+// 请求级超时保护：任何 API 最多 20 秒必须返回，避免 Railway 等环境连不上
 // 数据库时前端永久 "加载中"。超时后给出明确诊断信息。
 app.use((req, res, next) => {
   const timer = setTimeout(() => {
@@ -135,7 +136,7 @@ app.use((req, res, next) => {
         hint: '若部署在 Railway 等海外平台，很可能是阿里云 RDS 安全组白名单未放行该平台出口 IP。请检查 RDS 白名单，或改用能直连 RDS 的部署方式（如本地内网穿透）。'
       });
     }
-  }, 15000);
+  }, 20000);
   res.on('finish', () => clearTimeout(timer));
   res.on('close', () => clearTimeout(timer));
   next();
@@ -1274,6 +1275,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 草料二维码看板服务已启动: http://localhost:${PORT}`);
   warmUp();
+  keepPoolAlive();
 });
 
 // 启动预热：填充核心统计缓存，避免首位用户承受冷查询延迟
@@ -1290,4 +1292,25 @@ async function warmUp() {
   } catch (e) {
     console.warn('⚠️ 缓存预热失败（不影响启动）：', e.message);
   }
+}
+
+// ========== 连接池预热 + 心跳保活（性能优化 · 根因修复） ==========
+// 背景：Railway(海外) → 阿里云 RDS(国内) 跨地域，新建 TCP 连接 + 握手约需 10~13s。
+// 若连接池不被保持温暖，稳态下并行查询（loadAllData 一次发 ~20 个）会逐个重建连接，
+// 表现为 /health 超时、/stats 等聚合接口卡 15~20s。显式预热若干连接 + 定期心跳，
+// 使稳态查询复用温暖连接（亚秒级），从而消除"页面经常卡住"。
+async function warmPoolConnections(n = 10) {
+  try {
+    await Promise.all(Array.from({ length: n }, () => pool.query('SELECT 1')));
+    console.log(`[POOL] 预热 ${n} 个数据库连接完成`);
+  } catch (e) {
+    console.error('[POOL] 预热失败：', e && e.message);
+  }
+}
+function keepPoolAlive() {
+  warmPoolConnections(10); // 启动即预热满池，首位用户并行查询直接命中温暖连接
+  // 每 20s 心跳：容器存活期间保持连接不被 RDS 回收 / 中间网络断开（浏览器 5 分钟轮询也顺带保活容器）
+  setInterval(() => {
+    pool.query('SELECT 1').catch(e => console.error('[POOL] 心跳失败：', e && e.message));
+  }, 20000);
 }
