@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>看板跨平台测速 · Railway vs Render</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#fff; --rail:#2563eb; --ren:#16a34a;
+    --text:#1f2937; --muted:#6b7280; --border:#e5e7eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--text);padding:22px;max-width:980px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px;line-height:1.6}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px;
+         box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  input{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;
+        font-family:ui-monospace,Menlo,Consolas,monospace}
+  .row{display:flex;gap:12px}
+  .row>div{flex:1}
+  #n{width:120px}
+  button{margin-top:14px;background:#111827;color:#fff;border:0;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  .rail-tag{color:var(--rail);font-weight:600}
+  .ren-tag{color:var(--ren);font-weight:600}
+  .cold{color:#b45309}
+  .best{background:#ecfdf5}
+  .win{color:var(--ren);font-weight:700}
+  .lose{color:var(--rail)}
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;color:#cbd5e1;
+       background:#0f172a;padding:12px;border-radius:8px;margin-top:10px;max-height:240px;overflow:auto}
+  .legend{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7}
+  .verdict{font-size:14px;line-height:1.8;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-top:10px}
+  .verdict b{color:#15803d}
+  h2{font-size:15px;margin:4px 0 0}
+  .fail{color:#dc2626;font-weight:600}
+</style>
+</head>
+<body>
+<h1>跨平台访问测速 · Railway vs Render</h1>
+<div class="sub">
+  在你自己的网络下测量两个看板平台。<b>数据全部在你浏览器本地计算，不上传给任何人。</b>
+  依赖线上实例已开启 CORS（已部署）。<code>/api/stats</code> 含真实数据库查询，是衡量"看板加载数据慢不慢"的关键。
+</div>
+
+<div class="panel">
+  <div class="row">
+    <div>
+      <label>Railway 地址</label>
+      <input id="rail" value="https://cli-dashboard-production.up.railway.app">
+    </div>
+    <div>
+      <label>Render 地址</label>
+      <input id="ren" value="https://cli-dashboard.onrender.com">
+    </div>
+  </div>
+  <label>看板访问令牌（用于测 /api/stats，留空则只测 /api/health）</label>
+  <input id="tok" value="35253b491a2ca076ec3466923c0b9f4c66f627342b52a87d">
+  <div class="row" style="align-items:flex-end">
+    <div>
+      <label>每接口预热采样次数（冷启动 1 次 + 预热 N 次）</label>
+      <input id="n" value="3">
+    </div>
+  </div>
+  <button id="go">开始测速</button>
+  <div id="log"></div>
+</div>
+
+<div class="panel">
+  <h2>明细</h2>
+  <div id="detail"></div>
+  <h2 style="margin-top:18px">汇总对比（预热态均值）</h2>
+  <div id="summary"></div>
+  <div id="verdict"></div>
+  <div class="legend">
+    指标说明：
+    <b>connect</b>=TCP/TLS 建连耗时（经 CDN 时可能为空，仅供参考）；
+    <b>ttfb</b>=首字节（建连 + 服务端处理 + 查库）；
+    <b>total</b>=完整响应耗时（你感知到的"加载完"）。
+    冷启动 = 平台休眠唤醒后的首次请求（实例冷启 + DB 握手，两端都偏慢）；预热 = 连续请求（连接池已热，稳态成绩）。
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function log(m){ const el=$('log'); el.textContent += m+'\n'; el.scrollTop=el.scrollHeight; }
+function clearT(){ try{ performance.clearResourceTimings(); }catch(e){} }
+
+async function measure(rawUrl){
+  const url = rawUrl + (rawUrl.includes('?')?'&':'?') + '_c=' + Date.now();
+  const t0 = performance.now();
+  const resp = await fetch(url, {cache:'no-store', mode:'cors'});
+  await resp.text();
+  const t1 = performance.now();
+  const entries = performance.getEntriesByName(url);
+  const e = entries[entries.length-1];
+  let connect=0, ttfb=0, total = t1 - t0;
+  if(e){ total = e.responseEnd - e.startTime; connect = e.connectEnd - e.connectStart; ttfb = e.responseStart - e.requestStart; }
+  return {code:resp.status, connect, ttfb, total, totalManual:t1-t0};
+}
+
+async function roundtrip(name, url){
+  log('→ '+name+'  '+url.replace(/\?.*/,'')+(url.includes('token=')?'?token=***':''));
+  try{
+    clearT();
+    const r = await measure(url);
+    const fmt = v => v>0 ? v.toFixed(0)+'ms' : '—';
+    log('   code='+r.code+'  connect='+fmt(r.connect)+'  ttfb='+fmt(r.ttfb)+'  total='+r.total.toFixed(0)+'ms');
+    return {...r, ok:true};
+  }catch(err){
+    log('   ❌ 失败：'+err.message);
+    return {code:0, connect:0, ttfb:0, total:0, ok:false};
+  }
+}
+
+function avg(arr){ return arr.reduce((s,x)=>s+x,0)/arr.length; }
+function agg(rows, host, ep){
+  const rs = rows.filter(r => r.host===host && r.ep===ep);
+  if(!rs.length) return null;
+  const cold = rs[0];
+  const warm = rs.slice(1);
+  return {
+    cold,
+    warmAvg: warm.length ? {connect:avg(warm.map(x=>x.connect)), ttfb:avg(warm.map(x=>x.ttfb)), total:avg(warm.map(x=>x.total))} : null,
+    anyFail: rs.some(x=>!x.ok)
+  };
+}
+
+async function run(){
+  const rail = $('rail').value.trim().replace(/\/+$/,'');
+  const ren  = $('ren').value.trim().replace(/\/+$/,'');
+  const tok  = $('tok').value.trim();
+  const n = Math.max(1, parseInt($('n').value)||3);
+  const btn = $('go');
+  btn.disabled = true; $('log').textContent=''; $('detail').innerHTML=''; $('summary').innerHTML=''; $('verdict').innerHTML='';
+  log('开始：'+new Date().toLocaleString()+'（本机时区 '+(Intl.DateTimeFormat().resolvedOptions().timeZone||'?')+'）\n');
+
+  const rows = [];
+  const plan = [];
+  // health: 冷1 + 热n
+  plan.push({host:'rail', ep:'/api/health', label:'/api/health', phase:'冷', url:rail+'/api/health'});
+  plan.push({host:'ren',  ep:'/api/health', label:'/api/health', phase:'冷', url:ren+'/api/health'});
+  for(let i=1;i<=n;i++){ plan.push({host:'rail', ep:'/api/health', label:'/api/health', phase:'热'+i, url:rail+'/api/health'});
+                         plan.push({host:'ren',  ep:'/api/health', label:'/api/health', phase:'热'+i, url:ren+'/api/health'}); }
+  if(tok){
+    plan.push({host:'rail', ep:'/api/stats', label:'/api/stats', phase:'冷', url:rail+'/api/stats?token='+tok});
+    plan.push({host:'ren',  ep:'/api/stats', label:'/api/stats', phase:'冷', url:ren+'/api/stats?token='+tok});
+    for(let i=1;i<=n;i++){ plan.push({host:'rail', ep:'/api/stats', label:'/api/stats', phase:'热'+i, url:rail+'/api/stats?token='+tok});
+                           plan.push({host:'ren',  ep:'/api/stats', label:'/api/stats', phase:'热'+i, url:ren+'/api/stats?token='+tok}); }
+  } else {
+    log('（未填令牌，跳过 /api/stats）\n');
+  }
+
+  for(const p of plan){
+    const r = await roundtrip((p.host==='rail'?'Railway':'Render')+' '+p.label+'（'+p.phase+'）', p.url);
+    rows.push({...p, ...r});
+  }
+
+  // ---- 明细表 ----
+  let dh = '<table><thead><tr><th>平台</th><th>接口</th><th>阶段</th><th>HTTP</th><th>connect</th><th>ttfb</th><th>total</th></tr></thead><tbody>';
+  for(const r of rows){
+    const cls = r.host==='rail' ? 'rail-tag' : 'ren-tag';
+    const phCls = r.phase==='冷' ? 'cold' : '';
+    const fmt = v => v>0 ? v.toFixed(0)+'ms' : '—';
+    dh += '<tr><td class="'+cls+'">'+(r.host==='rail'?'Railway':'Render')+'</td><td>'+r.ep+'</td>'+
+          '<td class="'+phCls+'">'+r.phase+'</td><td class="'+(r.ok?'':'fail')+'">'+(r.ok?r.code:'FAIL')+'</td>'+
+          '<td>'+fmt(r.connect)+'</td><td>'+fmt(r.ttfb)+'</td><td>'+fmt(r.total)+'</td></tr>';
+  }
+  dh += '</tbody></table>';
+  $('detail').innerHTML = dh;
+
+  // ---- 汇总对比 ----
+  const eps = tok ? ['/api/health','/api/stats'] : ['/api/health'];
+  let sh = '<table><thead><tr><th>接口</th><th>Railway 预热均值</th><th>Render 预热均值</th><th>更快</th><th>倍数</th></tr></thead><tbody>';
+  let verdicts = [];
+  for(const ep of eps){
+    const a = agg(rows,'rail',ep), b = agg(rows,'ren',ep);
+    if(!a || !b || !a.warmAvg || !b.warmAvg){ continue; }
+    const ra=a.warmAvg.total, rb=b.warmAvg.total;
+    const renFaster = rb < ra;
+    sh += '<tr><td>'+ep+'</td>'+
+          '<td class="'+(renFaster?'lose':'best')+'">'+ra.toFixed(0)+'ms</td>'+
+          '<td class="'+(renFaster?'best':'lose')+'">'+rb.toFixed(0)+'ms</td>'+
+          '<td class="'+(renFaster?'win':'lose')+'">'+(renFaster?'Render':'Railway')+'</td>'+
+          '<td>'+((renFaster? ra/rb : rb/ra)).toFixed(2)+'×</td></tr>';
+    verdicts.push((renFaster?'Render':'Railway')+' 的 '+ep+' 在你当前网络下平均比 '+(renFaster?'Railway':'Render')+' 快 '+Math.abs(ra-rb).toFixed(0)+'ms（'+((renFaster? ra/rb : rb/ra)).toFixed(2)+'×）');
+  }
+  sh += '</tbody></table>';
+  $('summary').innerHTML = sh;
+
+  if(verdicts.length){
+    $('verdict').innerHTML = '<div class="verdict"><b>结论：</b><br>• '+verdicts.join('<br>• ')+
+      '<br><br>注：以上为<b>预热态</b>成绩（实例已唤醒、连接池已热）。真·首次访问（平台休眠后唤醒）两端都会慢（实例冷启 30–60s + DB 握手约 12s），该场景两端半斤八两。</div>';
+  }
+  log('\n完成 ✓');
+  btn.disabled = false;
+}
+$('go').addEventListener('click', run);
+</script>
+</body>
+</html>

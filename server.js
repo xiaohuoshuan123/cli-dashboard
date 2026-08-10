@@ -10,6 +10,19 @@ const compression = require('compression');
 
 const app = express();
 app.disable('x-powered-by'); // 隐藏技术栈指纹（S4）
+
+// CORS + Timing-Allow-Origin：允许浏览器跨域访问看板 API（用于自建测速页从不同 origin 测量两个平台性能）。
+// 同时开放 Performance Resource Timing 的跨域明细，前端才好读到 connect/首字节 细分耗时。
+// 仅放行 GET/OPTIONS；请求不带 credentials，Access-Control-Allow-Origin 用 '*' 即可；生产同源部署不受影响。
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-token');
+  res.setHeader('Timing-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // 基础安全响应头：同源部署且页面含较多内联脚本/Chart.js 插件，故不强制 CSP 以免破坏渲染
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
