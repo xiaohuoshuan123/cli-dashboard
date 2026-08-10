@@ -191,7 +191,7 @@ async function initAuth() {
   showLogin();
 }
 
-async function fetchAPI(endpoint, timeout = 14000) {
+async function fetchAPI(endpoint, timeout = 22000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
