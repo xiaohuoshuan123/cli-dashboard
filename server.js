@@ -832,6 +832,50 @@ app.get('/api/tasks/details', async (req, res) => {
   }
 });
 
+// 未完成任务设备清单（计划执行明细下方按钮用）
+// 取「状态 != 完成」的全部周期任务明细，并按 code_id 关联各设备主数据模板表，
+// 用 COALESCE 兜底取 编号/位置/责任部门/点检人（不同模板列名不同，缺列则回退码名称/空）。
+// 任务结束日期 = 截止时间；与计划执行明细同源（按 开始时间 切片），保证数字口径一致。
+app.get('/api/tasks/pending-devices', async (req, res) => {
+  try {
+    const params = [];
+    let dateSql = '';
+    if (req.query.startDate) { dateSql += ' AND t.开始时间 >= ?'; params.push(req.query.startDate); }
+    if (req.query.endDate) { dateSql += ' AND t.开始时间 <= ?'; params.push(endVal(req.query.endDate)); }
+
+    const sql = [
+      'SELECT',
+      "  t.计划名称 AS plan_name,",
+      "  b.目录 AS device_type,",
+      "  b.码名称 AS code_name,",
+      "  COALESCE(d10.`编号_3170086`, d12.`出厂编号_3170409`, d14.`钢瓶原始编号_3170540`, d15.`编号_3170556`, d28.`编号_3399816`, b.`码名称`) AS device_code,",
+      "  COALESCE(d10.`所在位置_3170087`, d12.`安装位置_3170411`, d14.`保存位置_3171248`, d15.`安装位置_3170557`, d25.`存放位置_3333288`, d28.`位置_3399814`) AS location,",
+      "  COALESCE(d10.`责任部门_81035291262977`, d14.`责任部门_3170545`, d15.`责任部门_81036793872385`) AS dept,",
+      "  COALESCE(d10.`点检人_3170286`, d15.`点检人_3170560`, d14.`责任人_3170542`, d12.`管理人_3170410`, d25.`管理人_3333286`, d28.`管理人_3399815`) AS inspector,",
+      "  t.状态 AS status,",
+      "  t.开始时间 AS start_time,",
+      "  t.截止时间 AS end_time",
+      'FROM code_task_log t',
+      'LEFT JOIN base_codeinfo b ON t.code_id = b.code_id',
+      'LEFT JOIN template_codeinfo_d10 d10 ON t.code_id = d10.code_id',
+      'LEFT JOIN template_codeinfo_d12 d12 ON t.code_id = d12.code_id',
+      'LEFT JOIN template_codeinfo_d14 d14 ON t.code_id = d14.code_id',
+      'LEFT JOIN template_codeinfo_d15 d15 ON t.code_id = d15.code_id',
+      'LEFT JOIN template_codeinfo_d25 d25 ON t.code_id = d25.code_id',
+      'LEFT JOIN template_codeinfo_d28 d28 ON t.code_id = d28.code_id',
+      "WHERE (t.状态 != '完成' OR t.状态 IS NULL OR t.状态 = '')",
+      dateSql,
+      'ORDER BY b.目录, t.截止时间 DESC',
+      'LIMIT 5000'
+    ].join('\n');
+
+    const rows = await query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 // 码类型分布
 app.get('/api/codes/types', async (req, res) => {
   try {
@@ -1206,31 +1250,6 @@ if (_missing.length) {
   console.error('❌ 启动失败：缺少必需的环境变量 -> ' + _missing.join(', ') + '。请在 Railway Variables 中配置后再启动。');
   process.exit(1);
 }
-
-// [TEMP DEBUG] 枚举模板表全部列 + 样本行 + base_codeinfo 列（查完即删）
-app.get('/api/debug/tpl-map', async (req, res) => {
-  try {
-    const tables = await query(
-      `SELECT TABLE_NAME as t FROM information_schema.tables WHERE table_schema = ? AND TABLE_NAME LIKE 'template_codeinfo_%' ORDER BY TABLE_NAME`,
-      [dbConfig.database], 0);
-    const out = [];
-    for (const { t } of tables) {
-      const cols = await query(
-        `SELECT COLUMN_NAME as c FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ORDINAL_POSITION`,
-        [dbConfig.database, t], 0);
-      const colNames = cols.map(r => r.c);
-      const sample = await query(`SELECT * FROM \`${t}\` LIMIT 1`, [], 0);
-      out.push({ table: t, allCols: colNames, sample: sample[0] || null });
-    }
-    const baseCols = await query(
-      `SELECT COLUMN_NAME as c FROM information_schema.columns WHERE table_schema = ? AND table_name = 'base_codeinfo' ORDER BY ORDINAL_POSITION`,
-      [dbConfig.database], 0);
-    const baseSample = await query(`SELECT * FROM base_codeinfo LIMIT 1`, [], 0);
-    res.json({ tables: out, baseCols: baseCols.map(r => r.c), baseSample: baseSample[0] || null });
-  } catch (err) {
-    sendError(res, err);
-  }
-});
 
 // 启动服务器
 const PORT = process.env.PORT || 3000;
