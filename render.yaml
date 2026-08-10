@@ -1,0 +1,17 @@
+# Render 零配置部署文件（可选，也可在 Render 控制台手动配置）
+# 用法：仓库根目录放此文件 -> New Web Service -> Connect 仓库 -> 自动识别
+services:
+  - type: web
+    name: cli-dashboard
+    runtime: node
+    plan: free            # 免费层 750h/月；长时间无访问会冷启动 30-50s
+    region: oregon        # 海外区域；若重视国内速度改 singapore（仍偏慢）
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # 注意：DB_PASSWORD / ACCESS_TOKEN 等敏感变量请在 Render 控制台
+      # 「Environment」中手动添加（不要写在此文件，避免提交到仓库）。
+      # PORT 由 Render 自动注入，无需设置。
