@@ -1258,14 +1258,24 @@ app.get('/api/tasks/overdue', async (req, res) => {
   }
 });
 
-// ========== 启动前密钥校验（fail-closed） ==========
-// DB 密码与访问令牌【必须】来自环境变量（变量名精确匹配 DB_PASSWORD / ACCESS_TOKEN），缺失则拒绝启动，避免硬编码兜底泄露/误用。
+// ========== 启动前密钥校验（fail-closed，仅生产环境强制） ==========
+// 生产环境（Railway 等）缺失 DB_PASSWORD / ACCESS_TOKEN 时拒绝启动，避免误部署无鉴权 / 无 DB 的服务（fail-closed）。
+// 非生产环境（CI 冒烟 NODE_ENV=test、本地 development）允许在缺失 DB 的情况下启动：
+//   - 使 /api/health、/api/auth/verify 等不依赖 DB 的接口仍可被冒烟测试覆盖（CI「不依赖数据库」的设计前提）；
+//   - DB 相关接口在查询时通过各路由 try/catch 优雅返回错误，不会拖垮进程；
+//   - 启动预热 warmUp() / 心跳 keepPoolAlive() 的失败已被 try/catch 与 .catch 吞掉。
+// 这样 CI 冒烟可稳定通过，而真实部署仍保持 fail-closed。
+const isProd = process.env.NODE_ENV === 'production';
 const _missing = [];
 if (!process.env.DB_PASSWORD) _missing.push('DB_PASSWORD');
 if (!process.env.ACCESS_TOKEN) _missing.push('ACCESS_TOKEN');
 if (_missing.length) {
-  console.error('❌ 启动失败：缺少必需的环境变量 -> ' + _missing.join(', ') + '。请在 Railway Variables 中配置后再启动。');
-  process.exit(1);
+  if (isProd) {
+    console.error('❌ 启动失败：缺少必需的环境变量 -> ' + _missing.join(', ') + '。请在 Railway Variables 中配置后再启动。');
+    process.exit(1);
+  } else {
+    console.warn('⚠️ 缺少环境变量（' + _missing.join(', ') + '），以「降级模式」启动：不连接数据库，仅 /api/health、/api/auth/verify 等无 DB 接口可用。仅用于 CI 冒烟或本地调试。');
+  }
 }
 
 // 启动服务器
